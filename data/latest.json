@@ -1,7 +1,1 @@
-{
-  "lastSync": "2026-09-22T00:00:00-03:00",
-  "fc": "REC1",
-  "syncedBy": "inicial",
-  "appointments": [],
-  "sortability": []
-}
+{"lastSync":"2026-09-26T10:00:00-03:00","fc":"REC1","syncedBy":"test","appointments":[{"i":"148599015591","fc":"REC1","tp":"CARP","v":"FWR2Y","st":"CLOSED","tu":"1º turno","ai":"2026-09-18 15:00:00.000","af":"2026-09-18 17:00:00.000","ar":"2026-09-18 16:20:00.000","ck":"2026-09-18 21:53:00.000","cl":"2026-09-19 12:07:00.000","po":"Atraso motorista","tn":2.0,"th":14.23,"un":1044,"cx":32}],"sortability":[]}
