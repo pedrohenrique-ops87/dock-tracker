@@ -488,48 +488,51 @@ window.onerror=function(m,u,l){console.warn("DT:",m,"L"+l);return true};
 var D=[];
 var S=[];
 // ════════════════════════════════════════════════════════════════
-//  DOCK TRACKER v8.0 — DATA LOADER (GitHub Pages)
-//  Carrega D[] e S[] de data/latest.json (commitado pelo TM)
+//  DOCK TRACKER v8.0 — DATA LOADER (dinâmico)
+//  Substitui dados estáticos por fetch() da API
 // ════════════════════════════════════════════════════════════════
 
 var _dtLoaded = false;
 var _dtLoadCount = 0;
 
+/**
+ * Carrega D[] e S[] da API e dispara render().
+ * Chamada na inicialização e a cada REFRESH_MS.
+ */
 async function loadData() {
     var cfg = window.DT_CONFIG || {};
-    var dataUrl = cfg.DATA_URL || 'data/latest.json';
+    var apiBase = cfg.API_BASE || '';
     var fcParam = new URLSearchParams(window.location.search).get('fc');
     var fc = fcParam || cfg.FC_DEFAULT || FC || 'REC1';
+    var days = cfg.DAYS_HISTORY || 14;
+
+    // Se API_BASE não configurado, usar dados locais (modo offline)
+    if (!apiBase || apiBase.indexOf('PLACEHOLDER') >= 0) {
+        console.warn('[DT-Loader] API_BASE não configurado. Modo offline.');
+        if (!_dtLoaded) {
+            _showLoadMsg('⚠️ API não configurada. Rode deploy.sh primeiro.', '#f0883e');
+        }
+        return;
+    }
 
     _showLoadMsg('🔄 Carregando dados...', '#58a6ff');
 
     try {
-        // Cache-bust para pegar versão mais recente
-        var url = dataUrl + '?t=' + Date.now();
-        var res = await fetch(url);
+        var url = apiBase + '/data?fc=' + fc + '&days=' + days;
+        var res = await fetch(url, { credentials: 'include' });
 
-        if (!res.ok) {
-            if (res.status === 404) {
-                _showLoadMsg('📭 Sem dados ainda. Abra o Dockmaster com o TM ativo.', '#f0883e');
-                return;
-            }
-            throw new Error('HTTP ' + res.status);
-        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
 
         var json = await res.json();
 
-        // Setar arrays globais
-        D = json.appointments || json.D || [];
-        S = json.sortability || json.S || [];
+        // Setar arrays globais (mesmo formato do v7.5)
+        D = json.appointments || [];
+        S = json.sortability || [];
 
-        // Filtrar por FC se necessário
-        if (fcParam) {
-            D = D.filter(function(a) { return a.fc === fc; });
-            S = S.filter(function(s) { return s.fc === fc; });
-            FC = fc;
-        }
+        // Atualizar FC global se necessário
+        if (fcParam) FC = fc;
 
-        // Reconstruir sMap
+        // Reconstruir sMap (mapa ISA → items de sortability)
         if (typeof sMap !== 'undefined') {
             sMap = {};
             S.forEach(function(s) {
@@ -540,31 +543,40 @@ async function loadData() {
         _dtLoaded = true;
         _dtLoadCount++;
 
-        var lastSync = json.lastSync || 'desconhecido';
-        if (json.lastSync) {
-            try { lastSync = new Date(json.lastSync).toLocaleString('pt-BR'); } catch(e) {}
+        console.log(
+            '[DT-Loader] ✅ D=' + D.length + ' appts, S=' + S.length +
+            ' sort (' + fc + ', ' + (json.dateRange||{}).from + ' → ' +
+            (json.dateRange||{}).to + ')'
+        );
+
+        // Atualizar status no header
+        var lastCol = json.lastCollected || 'never';
+        if (lastCol !== 'never') {
+            var d = new Date(lastCol);
+            lastCol = d.toLocaleString('pt-BR');
         }
-
-        console.log('[DT-Loader] ✅ D=' + D.length + ' appts, S=' + S.length + ' sort');
-
         _showLoadMsg(
-            '✅ ' + D.length + ' agendamentos, ' + S.length + ' sort • ' +
-            'Sync: ' + lastSync + ' • FC: ' + (FC || 'ALL'),
+            '☁️ API: ' + D.length + ' appts, ' + S.length + ' sort • ' +
+            'Última coleta: ' + lastCol,
             '#3fb950'
         );
 
+        // Disparar re-render
         try { render(); } catch(e) { console.error('[DT-Loader] render():', e); }
 
     } catch (err) {
         console.error('[DT-Loader] ❌', err);
         _showLoadMsg(
-            '⚠️ Erro: ' + err.message +
+            '⚠️ Erro ao carregar: ' + err.message +
             (_dtLoaded ? ' (usando dados em cache)' : ''),
             '#f85149'
         );
     }
 }
 
+/**
+ * Mostra mensagem de status no topo do dashboard.
+ */
 function _showLoadMsg(msg, color) {
     var el = document.getElementById('dt-load-status');
     if (!el) {
@@ -581,10 +593,12 @@ function _showLoadMsg(msg, color) {
     el.style.color = color || '#8b949e';
 }
 
+// ── Auto-refresh ──
 (function _initDataLoader() {
     var cfg = window.DT_CONFIG || {};
     var refreshMs = cfg.REFRESH_MS || 300000;
 
+    // Carregar dados quando DOM estiver pronto
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(loadData, 100);
@@ -593,13 +607,15 @@ function _showLoadMsg(msg, color) {
         setTimeout(loadData, 100);
     }
 
+    // Auto-refresh
     setInterval(function() {
         loadData().catch(function(e) {
-            console.warn('[DT-Loader] Refresh error:', e);
+            console.warn('[DT-Loader] Auto-refresh error:', e);
         });
     }, refreshMs);
 })();
 
+// ════════════════════════════════════════════════════════════════
 
 
 var FC='REC1';
@@ -928,12 +944,10 @@ var _MON_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','
 function buildDayPicker(){
   var strip=document.getElementById('dayStripScroll');
   if(!strip)return;
-  /* Remove old day cards (keep TODOS button) */
   var old=strip.querySelectorAll('.day-card');
   old.forEach(function(c){c.remove();});
 
-  var data=fd(); /* all data for current FC */
-  /* Build map of date -> ISA count + pontualidade */
+  var data=fd();
   var dateMap={};
   data.forEach(function(r){
     var k=dk(r.ai);if(!k)return;
@@ -944,13 +958,12 @@ function buildDayPicker(){
     if(r.th&&r.th>_metas.tat*2)dateMap[k].crit++;
   });
 
-  /* Generate ±7 days from today (BRT) */
-  var now=new Date();
-  var brt=new Date(now.getTime()-3*60*60*1000);
-  var todayStr=brt.toISOString().split('T')[0];
+  /* Use data-based today, not system clock */
+  var todayStr=getToday(data);
+  var todayD=new Date(todayStr+'T12:00:00');
   var days=[];
   for(var i=-7;i<=7;i++){
-    var d=new Date(brt);
+    var d=new Date(todayD);
     d.setDate(d.getDate()+i);
     var key=d.toISOString().split('T')[0];
     days.push({key:key,date:d,offset:i});
@@ -992,13 +1005,9 @@ function buildDayPicker(){
     if(isToday)todayCardEl=card;
   });
 
-  /* Update TODOS button state */
   var allBtn=document.getElementById('dayAllBtn');
-  if(allBtn){
-    allBtn.classList.toggle('active',_dayFilter===null);
-  }
+  if(allBtn){allBtn.classList.toggle('active',_dayFilter===null);}
 
-  /* Scroll to center today's card */
   if(todayCardEl){
     setTimeout(function(){
       var sl=document.getElementById('dayStripScroll');
@@ -1057,6 +1066,14 @@ function switchFC(){FC=document.getElementById('fcSel').value;computeVendorScore
 /* ─── v8.0: Deep-link helpers ─── */
 function isaLink(isa){return 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/'+FC+'/appointment/view/'+isa+'/appointmentDetail';}
 function asinFCR(asin){return 'https://fcresearch-na.aka.amazon.com/'+FC+'/results?s='+asin+'+#inventory-nav';}
+function asinImg(asin,sz){
+  sz=sz||32;
+  return '<img src="https://m.media-amazon.com/images/P/'+asin+'.jpg" '+
+    'style="width:'+sz+'px;height:'+sz+'px;object-fit:contain;background:#fff;border-radius:3px" '+
+    'onerror="this.onerror=null;this.src=\'https://m.media-amazon.com/images/I/'+asin+'._SL75_.jpg\';this.style.opacity=\'0.6\'" '+
+    'loading="lazy">';
+}
+
 
 function openTab(n){
   curTab=n;
@@ -1175,7 +1192,7 @@ function showHandoff(){
 }
 function copyHandoff(){
   var data=turnoFilter(fd());
-  navigator.clipboard.writeText(genHandoff(data)).then(function(){showToast('\u2705 Handoff copiado!');});
+  try{navigator.clipboard.writeText(genHandoff(data)).then(function(){showToast('\u2705 Handoff copiado!');});}catch(e){showToast('Clipboard indisponível');}
 }
 
 /* ─── WoW Comparison ─── */
@@ -1441,7 +1458,8 @@ function renderTAT(data){if(!data)data=[];
   h+=buildWoW(data);
   // Visual comparison bars
   (function(){
-    var today=new Date();var tw0=new Date(today);tw0.setDate(today.getDate()-today.getDay()+1);
+    var todayStr2=getToday(data);var today=new Date(todayStr2+'T12:00:00');
+    var tw0=new Date(today);tw0.setDate(today.getDate()-(today.getDay()===0?6:today.getDay()-1));
     var lw0=new Date(tw0);lw0.setDate(lw0.getDate()-7);var lw1=new Date(tw0);lw1.setDate(lw1.getDate()-1);
     function wd(s,e){return data.filter(function(r){var d=dk(r.ai);return d>=s.toISOString().split('T')[0]&&d<=e.toISOString().split('T')[0];});}
     var tw=wd(tw0,today),lw=wd(lw0,lw1);
@@ -1482,22 +1500,45 @@ function renderVendors(data){if(!data)data=[];
   var vg={};var vISAs={};
   data.forEach(function(r){
     var v=vn(r.v)==='\u2014'?'(TRANSSHIP)':r.v;
-    if(!vg[v])vg[v]={c:0,u:0,t:[],p:0};
+    if(!vg[v])vg[v]={c:0,u:0,t:[],p:0,gls:{}};
     vg[v].c++;vg[v].u+=(r.un||0);if(r.th>0)vg[v].t.push(r.th);if(r.po==='Pontual')vg[v].p++;
+    var gl=getGL(r.i);if(gl){vg[v].gls[gl]=(vg[v].gls[gl]||0)+(r.un||0);}
     if(!vISAs[v])vISAs[v]=[];vISAs[v].push(r);
   });
   var vs=Object.keys(vg).sort(function(a,b){return vg[b].u-vg[a].u;});
+  var maxU=vs.length?vg[vs[0]].u:1;
+  /* KPIs */
+  var totalV=vs.length,totalI=data.length,totalU=data.reduce(function(s,r){return s+(r.un||0);},0);
   var h='<div class="toolbar"><button class="btn" onclick="exportTab(\'vendors\')">📥 CSV</button>';
   h+='<input class="tbl-search" id="sVnd" placeholder="🔍 Buscar vendor..." oninput="filterVndTbl()">';
   h+='</div>';
-  h+='<div class="stbl"><table id="tbl_vendors"><thead><tr><th></th><th>Vendor</th><th>Score</th><th>ISAs</th><th>Units</th><th>Avg TAT</th><th>Pont. %</th></tr></thead><tbody>';
+  h+='<div class="kpi-grid">';
+  h+='<div class="kpi"><div class="val">'+totalV+'</div><div class="lbl">Vendors</div></div>';
+  h+='<div class="kpi b"><div class="val">'+totalI+'</div><div class="lbl">Total ISAs</div></div>';
+  h+='<div class="kpi g"><div class="val">'+num(totalU)+'</div><div class="lbl">Total Units</div></div>';
+  h+='<div class="kpi p"><div class="val">'+pct(data.filter(function(r){return r.po==="Pontual";}).length,data.length)+'</div><div class="lbl">Pontualidade Geral</div></div>';
+  h+='</div>';
+  /* Top vendors bar chart */
+  h+='<div class="sec-title">📊 Top Vendors por Volume</div>';
+  vs.slice(0,10).forEach(function(v){
+    var g=vg[v];var w=Math.round((g.u/maxU)*100);
+    h+='<div class="barw"><span class="barlbl">'+v+'</span><div class="bar" style="width:'+w+'%"></div><span class="barval">'+num(g.u)+' un ('+g.c+' ISAs)</span></div>';
+  });
+  /* Main table */
+  h+='<div class="stbl"><table id="tbl_vendors"><thead><tr><th></th><th>Vendor</th><th>Score</th><th>ISAs</th><th>Units</th><th>Avg TAT</th><th>Pont. %</th><th>Top GL</th></tr></thead><tbody>';
   var uid=0;
   vs.forEach(function(v){
     var g=vg[v];var at=g.t.length?g.t.reduce(function(s,x){return s+x;},0)/g.t.length:0;
     var sc=_vendorScores[v];
-    h+='<tr><td class="exp-toggle" id="a_xvd'+uid+'" onclick="xToggle(\'xvd'+uid+'\')">\u25b6</td><td>'+v+'</td><td>'+(sc?'<span class="vs-'+sc.grade+'">'+sc.grade+' ('+sc.pct+'%)</span>':'\u2014')+'</td><td>'+g.c+'</td><td>'+num(g.u)+'</td><td>'+at.toFixed(2)+'h</td><td>'+pct(g.p,g.c)+'</td></tr>';
-    h+='<tr class="xrow" id="xvd'+uid+'"><td colspan="13"><table style="margin:4px 0"><thead><tr><th>Data</th><th>ISA</th><th>Status</th><th>TAT</th><th>Units</th><th>Pont.</th><th>GL</th><th>Doca</th><th>Login</th><th>Lado</th><th>Perfil</th><th>OBS</th><th>TT</th></tr></thead><tbody>';
-    vISAs[v].forEach(function(r){h+='<tr><td>'+fmtD(r.ai)+'</td><td>'+r.i+'</td><td>'+sb(r.st)+'</td><td>'+(r.th?r.th+'h':'\u2014')+'</td><td>'+num(r.un)+'</td><td>'+pb(r.po)+'</td><td>'+getDoca(r.i)+'</td><td>'+getLogin(r.i)+'</td><td>'+getLado(r.i)+'</td><td>'+getPerfil(r.i)+'</td><td>'+getObs(r.i)+'</td><td>'+getTT(r.i)+'</td></tr>';});
+    /* Top GL for this vendor */
+    var topGL='—';var glKeys=Object.keys(g.gls);
+    if(glKeys.length){glKeys.sort(function(a,b){return g.gls[b]-g.gls[a];});topGL=glKeys[0].replace('gl_','');}
+    h+='<tr><td class="exp-toggle" id="a_xvd'+uid+'" onclick="xToggle(\'xvd'+uid+'\')">▶</td>';
+    h+='<td>'+v+'</td>';
+    h+='<td>'+(sc?'<span class="vs-'+sc.grade+'">'+sc.grade+' ('+sc.pct+'%)</span>':'—')+'</td>';
+    h+='<td>'+g.c+'</td><td>'+num(g.u)+'</td><td>'+at.toFixed(2)+'h</td><td>'+pct(g.p,g.c)+'</td><td>'+topGL+'</td></tr>';
+    h+='<tr class="xrow" id="xvd'+uid+'"><td colspan="8"><table style="margin:4px 0"><thead><tr><th>Data</th><th>ISA</th><th>Status</th><th>TAT</th><th>Units</th><th>Pont.</th><th>GL</th></tr></thead><tbody>';
+    vISAs[v].forEach(function(r){h+='<tr><td>'+fmtD(r.ai)+'</td><td><a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none;font-size:.72rem">'+r.i+'</a></td><td>'+sb(r.st)+'</td><td>'+(r.th?r.th+'h':'—')+'</td><td>'+num(r.un)+'</td><td>'+pb(r.po)+'</td><td>'+getGL(r.i)+'</td></tr>';});
     h+='</tbody></table></td></tr>';uid++;
   });
   h+='</tbody></table></div>';
@@ -1529,15 +1570,26 @@ function renderEOS(data){if(!data)data=[];
   h+='<div class="kpi r"><div class="val">'+pct(pont,td.length)+'</div><div class="lbl">Pontualidade</div></div>';
   h+='</div></div>';
   // Top offenders
+  if(cl.length){
   h+='<div class="eos-blk"><h3>\ud83d\udd25 Top TAT Offenders</h3>';
   h+='<div class="stbl" style="max-height:50vh"><table><thead><tr><th></th><th>ISA</th><th>Vendor</th><th>TAT</th><th>Units</th><th>Pont.</th><th>GL</th></tr></thead><tbody>';
   cl.sort(function(a,b){return b.th-a.th;}).slice(0,15).forEach(function(r,i){
     h+=trow(r,'eo'+i,['<a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none;font-size:.72rem">'+r.i+'</a>',vn(r.v)+vsb(r.v),r.th+'h',num(r.un),pb(r.po),getGL(r.i)]);
   });
   h+='</tbody></table></div></div>';
+  } else {
+  /* No CLOSED appointments - show top by volume instead */
+  h+='<div class="eos-blk"><h3>📦 Top Appointments (por Volume)</h3>';
+  h+='<div style="font-size:.75rem;color:#999;margin-bottom:8px">Nenhum appointment CLOSED hoje. Mostrando os maiores por volume:</div>';
+  h+='<div class="stbl" style="max-height:50vh"><table><thead><tr><th></th><th>ISA</th><th>Vendor</th><th>Status</th><th>Units</th><th>Cartons</th><th>GL</th></tr></thead><tbody>';
+  td.sort(function(a,b){return(b.un||0)-(a.un||0);}).slice(0,15).forEach(function(r,i){
+    h+=trow(r,'eo'+i,['<a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none;font-size:.72rem">'+r.i+'</a>',vn(r.v)+vsb(r.v),sb(r.st),num(r.un),num(r.cx),getGL(r.i)]);
+  });
+  h+='</tbody></table></div></div>';
+  }
   // Weekly summary
   h+='<div class="eos-blk"><h3>\ud83d\udcf0 Resumo Semanal</h3><div style="font-size:.78rem;line-height:1.6">'+buildWeeklySummary(data)+'</div>';
-  h+='<button class="btn btn-sec" style="margin-top:8px" onclick="navigator.clipboard.writeText(document.querySelector(\'.eos-blk:last-child\').textContent).then(function(){showToast(\'\u2705 Copiado!\');})">\ud83d\udccb Copiar</button></div>';
+  h+='<button class="btn btn-sec" style="margin-top:8px" onclick="try{navigator.clipboard.writeText(document.querySelector(\'.eos-blk:last-child\').textContent).then(function(){showToast(\'\u2705 Copiado!\');})}catch(e){}">\ud83d\udccb Copiar</button></div>';
   el.innerHTML=h;
 }
 function copyEOS(){
@@ -1577,6 +1629,15 @@ function exportEOSPng(){
 }
 function _captureEOS(panel){
   try{
+  /* Hide toolbar and copy buttons before capture */
+  var toolbars=panel.querySelectorAll('.toolbar');
+  var btns=panel.querySelectorAll('.btn,.btn-sec');
+  toolbars.forEach(function(t){t.style.display='none';});
+  /* Add title header for PNG */
+  var hdr=document.createElement('div');
+  hdr.style.cssText='padding:12px 16px;font-size:1.1rem;font-weight:700;color:#ff9900;border-bottom:2px solid #ff9900;margin-bottom:8px';
+  hdr.textContent='EOS Report '+FC+' — '+fmtD(getToday(fd())+' ');
+  panel.insertBefore(hdr,panel.firstChild);
   html2canvas(panel,{
     backgroundColor:'#0d1117',
     scale:2,
@@ -1585,17 +1646,22 @@ function _captureEOS(panel){
     windowWidth:panel.scrollWidth,
     windowHeight:panel.scrollHeight
   }).then(function(canvas){
+    hdr.remove();
+    toolbars.forEach(function(t){t.style.display='';});
     var link=document.createElement('a');
     link.download='EOS_'+FC+'_'+getToday(fd()).replace(/-/g,'')+'.png';
     link.href=canvas.toDataURL('image/png');
     link.click();
-    showToast('PNG exportado! \u2705');
+    showToast('PNG exportado! ✅');
   }).catch(function(e){
+    hdr.remove();
+    toolbars.forEach(function(t){t.style.display='';});
     console.warn('html2canvas error:',e);
     showToast('Erro na captura PNG');
   });
   }catch(e){showToast('Erro: '+e.message);}
 }
+
 function _captureEOSNative(panel){
   try{
   // Fallback: create a simple text-based PNG notification
@@ -1609,7 +1675,10 @@ function renderASINs(data){
   var el=document.getElementById('p6');if(!el)return;
   // Flatten all sortability items across all ISAs, enriched with date
   var allItems=[];
-  Object.keys(sMap).forEach(function(isa){
+  /* Filter ISAs based on active data (day/turno filter) */
+  var dataISAs={};data.forEach(function(r){dataISAs[r.i]=true;});
+  var filteredIsas=Object.keys(sMap).filter(function(isa){return !data.length||dataISAs[isa];});
+  filteredIsas.forEach(function(isa){
     var isaData=D.find(function(r){return r.i===isa;})||{};
     var dt=dk(isaData.ai)||'';
     (sMap[isa]||[]).forEach(function(it){
@@ -1853,7 +1922,7 @@ function renderASINs(data){
       h+='</tr></thead><tbody>';
       topN.forEach(function(a){
         h+='<tr style="border-bottom:1px solid rgba(255,255,255,.05)">';
-        h+='<td style="padding:3px"><img src="https://m.media-amazon.com/images/P/'+a.a+'.jpg" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:2px" onerror="this.style.display=\'none\'"></td>';
+        h+='<td style="padding:3px">'+asinImg(a.a,28)+'</td>';
         h+='<td style="padding:3px;font-size:.65rem"><a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a></td>';
         h+='<td style="padding:3px;font-size:.65rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+((a.n||'').substring(0,40))+'</td>';
         h+='<td style="padding:3px;font-size:.65rem">'+(a.s||'—')+'</td>';
@@ -1877,7 +1946,7 @@ function renderASINs(data){
     var imp=(a.p==='N'||!a.p)?'<span style="color:#ef5350">\ud83d\udd25 N</span>':'<span style="color:#4caf50">S</span>';
     var vendorList=Object.keys(a.vendors).sort(function(x,y){return a.vendors[y]-a.vendors[x];}).slice(0,3).map(function(v){return v+'('+num(a.vendors[v])+')';}).join(', ');
     h+='<tr>';
-    h+='<td><img src="https://m.media-amazon.com/images/P/'+a.a+'.jpg" style="width:36px;height:36px;object-fit:contain;background:#fff;border-radius:3px" onerror="this.style.display=\'none\'"></td>';
+    h+='<td>'+asinImg(a.a,36)+'</td>';
     h+='<td style="font-size:.68rem"><a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a></td>';
     h+='<td style="font-size:.68rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+((a.n||'').replace(/"/g,'&quot;'))+'">'+((a.n||'').substring(0,45))+'</td>';
     h+='<td style="font-size:.68rem">'+(a.g?a.g.replace('gl_',''):'\u2014')+'</td>';
@@ -1917,7 +1986,7 @@ function renderHistorico(data){if(!data)data=[];
       return hSort.asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
     });
   }
-  var el=document.getElementById('p6');
+  var el=document.getElementById('p7');
   var h='<div class="toolbar"><button class="btn" onclick="exportTab(\'historico\')">📥 CSV</button>';
   h+='<input class="search-box" id="hSearch" placeholder="\ud83d\udd0d Search..." oninput="filterH()">';
   h+='<span style="color:#999;font-size:.75rem;margin-left:8px">'+data.length+' records</span></div>';
@@ -1956,38 +2025,44 @@ function filterH(){
 
 /* ─── Config Tab ─── */
 function renderConfig(data){
-  var el=document.getElementById('p7');
-  var h='<div class="sec-title">\u2699\ufe0f Configura\u00e7\u00f5es v7.3</div>';
+  var el=document.getElementById('p8');
+  var h='<div class="sec-title">⚙️ Configurações v8.0</div>';
   // Turnos
-  h+='<div class="cfg-section"><h3>\u23f0 Turnos por FC</h3>';
+  h+='<div class="cfg-section"><h3>⏰ Turnos por FC</h3>';
   ['REC1','REC3'].forEach(function(fc){
     var c=_turnoConfig[fc]||{t1s:'06:00',t1e:'20:00',t2s:'20:00',t2e:'05:00'};
     h+='<div style="margin-bottom:12px"><b style="color:#ff9900">'+fc+'</b>';
-    h+='<div class="cfg-row"><label>Turno 1:</label><input type="time" value="'+c.t1s+'" onchange="updTurno(\''+fc+'\',\'t1s\',this.value)"> at\u00e9 <input type="time" value="'+c.t1e+'" onchange="updTurno(\''+fc+'\',\'t1e\',this.value)"></div>';
-    h+='<div class="cfg-row"><label>Turno 2:</label><input type="time" value="'+c.t2s+'" onchange="updTurno(\''+fc+'\',\'t2s\',this.value)"> at\u00e9 <input type="time" value="'+c.t2e+'" onchange="updTurno(\''+fc+'\',\'t2e\',this.value)"></div></div>';
+    h+='<div class="cfg-row"><label>Turno 1:</label><input type="time" value="'+c.t1s+'" onchange="updTurno(\''+fc+'\',\'t1s\',this.value)"> até <input type="time" value="'+c.t1e+'" onchange="updTurno(\''+fc+'\',\'t1e\',this.value)"></div>';
+    h+='<div class="cfg-row"><label>Turno 2:</label><input type="time" value="'+c.t2s+'" onchange="updTurno(\''+fc+'\',\'t2s\',this.value)"> até <input type="time" value="'+c.t2e+'" onchange="updTurno(\''+fc+'\',\'t2e\',this.value)"></div></div>';
   });
   h+='</div>';
   // Metas
-  h+='<div class="cfg-section"><h3>\ud83c\udfaf Metas</h3>';
+  h+='<div class="cfg-section"><h3>🎯 Metas</h3>';
   h+='<div class="cfg-row"><label>Meta TAT (h):</label><input type="number" step="0.1" value="'+_metas.tat+'" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:4px 8px;border-radius:4px;width:80px" onchange="_metas.tat=parseFloat(this.value)||0.5;saveMetas();render()"></div>';
   h+='<div class="cfg-row"><label>Meta Pont. (%):</label><input type="number" step="1" value="'+_metas.pont+'" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:4px 8px;border-radius:4px;width:80px" onchange="_metas.pont=parseFloat(this.value)||85;saveMetas();render()"></div>';
   h+='</div>';
   // Auto-refresh
-  h+='<div class="cfg-section"><h3>\ud83d\udd04 Auto-Refresh</h3>';
-  h+='<div class="cfg-row"><label>Ativo:</label><input type="checkbox" '+(_autoRefresh?'checked':'')+' onchange="_autoRefresh=this.checked;saveRefreshConfig();startAutoRefresh();updateRefreshUI()"> <span style="color:#999;font-size:.75rem">'+(_autoRefresh?'\ud83d\udfe2 Ativo':'\u23f8\ufe0f Pausado')+'</span></div>';
+  h+='<div class="cfg-section"><h3>🔄 Auto-Refresh</h3>';
+  h+='<div class="cfg-row"><label>Ativo:</label><input type="checkbox" '+(_autoRefresh?'checked':'')+' onchange="_autoRefresh=this.checked;saveRefreshConfig();startAutoRefresh();updateRefreshUI()"> <span style="color:#999;font-size:.75rem">'+(_autoRefresh?'🟢 Ativo':'⏸️ Pausado')+'</span></div>';
   h+='<div class="cfg-row"><label>Intervalo:</label><select style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:4px 8px;border-radius:4px" onchange="_refreshInterval=parseInt(this.value);saveRefreshConfig();startAutoRefresh()">';
   [5,10,15,30].forEach(function(m){h+='<option value="'+m+'"'+(_refreshInterval===m?' selected':'')+'>'+m+' min</option>';});
   h+='</select></div></div>';
-  // Info
-  h+='<div class="cfg-section"><h3>\ud83d\udea7 Docas Dispon\u00edveis</h3>';
+  // Docas
+  h+='<div class="cfg-section"><h3>🚧 Docas Disponíveis</h3>';
   var _docaLS=(function(){try{return localStorage.getItem('dt_docas_'+FC)}catch(e){return null}})()||'D01\nD02\nD03\nD04\nD05\nD06\nD07\nD08\nD09\nD10\nD151\nD152\nD153\nD154\nD155\nD156\nD157\nD158\nD159\nD160';
   h+='<div class="cfg-row"><textarea id="cfgDocas" rows="4" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;width:100%;font-size:.75rem;font-family:monospace">'+_docaLS+'</textarea></div>';
-  h+='<div class="cfg-row"><button class="btn" onclick="localStorage.setItem(\'dt_docas_\'+FC,document.getElementById(\'cfgDocas\').value);showToast(\'Docas salvas!\')">\ud83d\udcbe Salvar Docas</button></div></div>';
-  h+='<div class="cfg-section"><h3>\ud83d\udc64 Logins Dispon\u00edveis</h3>';
+  h+='<div class="cfg-row"><button class="btn" onclick="try{localStorage.setItem(\'dt_docas_\'+FC,document.getElementById(\'cfgDocas\').value);showToast(\'Docas salvas!\')}catch(e){showToast(\'Erro: localStorage indisponível\')}">💾 Salvar Docas</button></div></div>';
+  // Logins
+  h+='<div class="cfg-section"><h3>👤 Logins Disponíveis</h3>';
   var _loginLS=(function(){try{return localStorage.getItem('dt_logins_'+FC)}catch(e){return null}})()||'';
   h+='<div class="cfg-row"><textarea id="cfgLogins" rows="4" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;width:100%;font-size:.75rem;font-family:monospace">'+_loginLS+'</textarea></div>';
-  h+='<div class="cfg-row"><button class="btn" onclick="localStorage.setItem(\'dt_logins_\'+FC,document.getElementById(\'cfgLogins\').value);showToast(\'Logins salvos!\')">\ud83d\udcbe Salvar Logins</button></div></div>';
-  h+='<div class="cfg-section"><h3>\u2139\ufe0f Info</h3><div style="font-size:.78rem;color:#999">Dock Tracker v7.4.1 \u2014 by Pedro Silva<br>D[]: '+D.length+' appointments | S[]: '+S.length+' ISAs<br>FC atual: '+FC+'</div></div>';
+  h+='<div class="cfg-row"><button class="btn" onclick="try{localStorage.setItem(\'dt_logins_\'+FC,document.getElementById(\'cfgLogins\').value);showToast(\'Logins salvos!\')}catch(e){showToast(\'Erro: localStorage indisponível\')}">💾 Salvar Logins</button></div></div>';
+  // Info
+  h+='<div class="cfg-section"><h3>ℹ️ Info</h3><div style="font-size:.78rem;color:#999">Dock Tracker v8.0 — by Pedro Silva<br>';
+  h+='D[]: '+D.length+' appointments | S[]: '+S.length+' ISAs<br>';
+  h+='FC atual: '+FC+'<br>';
+  h+='Data range: '+(D.length?dk(D[0].ai)+' → '+dk(D[D.length-1].ai):'sem dados')+'<br>';
+  h+='Fonte: '+(window.DT_CONFIG&&window.DT_CONFIG.DATA_URL?window.DT_CONFIG.DATA_URL:'local')+'</div></div>';
   el.innerHTML=h;
 }
 
@@ -2738,7 +2813,7 @@ function addTooltips(){
 
 /* ─── Tutorial Tab (#18) ─── */
 function renderTutorial(){
-  var el=document.getElementById('p8');
+  var el=document.getElementById('p9');
   if(!el)return;
   var h='<div style="max-height:calc(100vh - 200px);overflow-y:auto;padding:8px">';
   
