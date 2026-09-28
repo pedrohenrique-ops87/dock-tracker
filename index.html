@@ -501,82 +501,92 @@ var _dtLoadCount = 0;
  */
 async function loadData() {
     var cfg = window.DT_CONFIG || {};
+    var dataUrl = cfg.DATA_URL || '';
     var apiBase = cfg.API_BASE || '';
     var fcParam = new URLSearchParams(window.location.search).get('fc');
     var fc = fcParam || cfg.FC_DEFAULT || FC || 'REC1';
     var days = cfg.DAYS_HISTORY || 14;
 
-    // Se API_BASE não configurado, usar dados locais (modo offline)
-    if (!apiBase || apiBase.indexOf('PLACEHOLDER') >= 0) {
-        console.warn('[DT-Loader] API_BASE não configurado. Modo offline.');
-        if (!_dtLoaded) {
-            _showLoadMsg('⚠️ API não configurada. Rode deploy.sh primeiro.', '#f0883e');
-        }
-        return;
-    }
+    // Mode 1: Static JSON file (GitHub Pages)
+    if (dataUrl && !apiBase) {
+        _showLoadMsg('\ud83d\udd04 Carregando dados...', '#58a6ff');
+        try {
+            var res = await fetch(dataUrl + '?t=' + Date.now());
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var json = await res.json();
 
-    _showLoadMsg('🔄 Carregando dados...', '#58a6ff');
+            D = json.appointments || json.D || [];
+            S = json.sortability || json.S || [];
 
-    try {
-        var url = apiBase + '/data?fc=' + fc + '&days=' + days;
-        var res = await fetch(url, { credentials: 'include' });
-
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-
-        var json = await res.json();
-
-        // Setar arrays globais (mesmo formato do v7.5)
-        D = json.appointments || [];
-        S = json.sortability || [];
-
-        // Atualizar FC global se necessário
-        if (fcParam) FC = fc;
-
-        // Reconstruir sMap (mapa ISA → items de sortability)
-        if (typeof sMap !== 'undefined') {
+            if (fcParam) FC = fc;
             sMap = {};
             S.forEach(function(s) {
                 if (s.i && s.items) sMap[s.i] = s.items;
             });
+
+            _dtLoaded = true;
+            _dtLoadCount++;
+
+            var syncDate = json.lastSync ? new Date(json.lastSync).toLocaleString('pt-BR') : '';
+            _showLoadMsg(
+                '\u2705 ' + D.length + ' agendamentos, ' + S.length + ' sort' +
+                (syncDate ? ' \u2022 Sync: ' + syncDate : '') +
+                ' \u2022 FC: ' + FC,
+                '#4caf50'
+            );
+
+            buildDayPicker();
+            render();
+        } catch (e) {
+            console.warn('[DT-Loader]', e);
+            _showLoadMsg('\u26a0\ufe0f Erro ao carregar dados: ' + e.message, '#f85149');
         }
+        return;
+    }
 
-        _dtLoaded = true;
-        _dtLoadCount++;
+    // Mode 2: API Backend (CDK/Lambda)
+    if (apiBase && apiBase.indexOf('PLACEHOLDER') < 0) {
+        _showLoadMsg('\ud83d\udd04 Carregando dados...', '#58a6ff');
+        try {
+            var url = apiBase + '/data?fc=' + fc + '&days=' + days;
+            var res = await fetch(url, { credentials: 'include' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var json = await res.json();
 
-        console.log(
-            '[DT-Loader] ✅ D=' + D.length + ' appts, S=' + S.length +
-            ' sort (' + fc + ', ' + (json.dateRange||{}).from + ' → ' +
-            (json.dateRange||{}).to + ')'
-        );
+            D = json.appointments || [];
+            S = json.sortability || [];
+            if (fcParam) FC = fc;
+            sMap = {};
+            S.forEach(function(s) {
+                if (s.i && s.items) sMap[s.i] = s.items;
+            });
 
-        // Atualizar status no header
-        var lastCol = json.lastCollected || 'never';
-        if (lastCol !== 'never') {
-            var d = new Date(lastCol);
-            lastCol = d.toLocaleString('pt-BR');
+            _dtLoaded = true;
+            _dtLoadCount++;
+
+            var lastCol = json.lastCollected || 'never';
+            if (lastCol !== 'never') lastCol = new Date(lastCol).toLocaleString('pt-BR');
+            _showLoadMsg(
+                '\u2601\ufe0f API: ' + D.length + ' appts, ' + S.length + ' sort \u2022 ' +
+                '\u00daltima coleta: ' + lastCol,
+                '#4caf50'
+            );
+
+            buildDayPicker();
+            render();
+        } catch (e) {
+            console.warn('[DT-Loader]', e);
+            _showLoadMsg('\u26a0\ufe0f Erro ao carregar dados: ' + e.message, '#f85149');
         }
-        _showLoadMsg(
-            '☁️ API: ' + D.length + ' appts, ' + S.length + ' sort • ' +
-            'Última coleta: ' + lastCol,
-            '#3fb950'
-        );
+        return;
+    }
 
-        // Disparar re-render
-        try { render(); } catch(e) { console.error('[DT-Loader] render():', e); }
-
-    } catch (err) {
-        console.error('[DT-Loader] ❌', err);
-        _showLoadMsg(
-            '⚠️ Erro ao carregar: ' + err.message +
-            (_dtLoaded ? ' (usando dados em cache)' : ''),
-            '#f85149'
-        );
+    // Mode 3: No data source configured
+    if (!_dtLoaded) {
+        _showLoadMsg('\u26a0\ufe0f Sem fonte de dados configurada. Verifique config.js', '#f0883e');
     }
 }
 
-/**
- * Mostra mensagem de status no topo do dashboard.
- */
 function _showLoadMsg(msg, color) {
     var el = document.getElementById('dt-load-status');
     if (!el) {
