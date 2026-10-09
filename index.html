@@ -155,6 +155,7 @@ tbody tr:hover{background:rgba(255,153,0,.06)}
 .gantt-label{width:100px;font-size:.68rem;color:#ccc;flex-shrink:0;text-align:right;padding-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gantt-track{flex:1;position:relative;height:18px;background:rgba(255,255,255,.03);border-radius:3px}
 .gantt-bar{position:absolute;top:1px;height:16px;border-radius:3px;font-size:.58rem;color:#fff;line-height:16px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;z-index:1;opacity:.9}
+.gantt-row{cursor:pointer}.gantt-row:hover{background:rgba(255,255,255,.04)}.gantt-units{width:52px;flex-shrink:0;font-size:.68rem;color:#ddd;text-align:right;padding-left:6px}.gantt-expand-icon{width:16px;flex-shrink:0;text-align:center;color:#888;font-size:.65rem}.gantt-detail{margin:2px 0 8px 100px;padding:8px 10px;background:#1a2232;border:1px solid #30363d;border-left:3px solid #ff9900;border-radius:4px;font-size:.7rem;color:#ccc;line-height:1.6}.gantt-legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.68rem;color:#aaa;margin:6px 0 10px}.gantt-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gantt-legend-note{color:#777;font-style:italic}
 .gantt-now{position:absolute;top:0;bottom:0;width:2px;background:#ff9900;z-index:5}
 .gantt-hours{display:flex;justify-content:space-between;font-size:.6rem;color:#666;padding:0 0 0 100px}
 
@@ -1147,22 +1148,53 @@ function buildHeatmap(data,today){
 }
 
 /* ─── Gantt Timeline builder ─── */
+function ganttStatusLabel(st){
+  var m={'CLOSED':'Fechado','CHECK_IN':'Check-in','ARRIVED':'Chegou','ARRIVAL_SCHEDULED':'Agendado'};
+  return m[st]||st||'—';
+}
+function toggleGanttDetail(rowEl){
+  var det=rowEl.nextElementSibling;
+  if(!det||det.className.indexOf('gantt-detail')<0)return;
+  var open=det.style.display==='block';
+  det.style.display=open?'none':'block';
+  var icon=rowEl.querySelector('.gantt-expand-icon');
+  if(icon)icon.textContent=open?'▸':'▾';
+}
 function buildGantt(data,today){
   var td=data.filter(function(r){return dk(r.ai)===today;});
   if(!td.length)return '';
-  var h='<div class="gantt-wrap"><b style="color:#ff9900;font-size:.82rem">\ud83d\udcc5 Timeline da Doca</b>';
+  var h='<div class="gantt-wrap"><b style="color:#ff9900;font-size:.82rem">📅 Timeline da Doca</b>';
+  h+='<div class="gantt-legend">'+
+     '<span><i class="gantt-dot" style="background:#4caf50"></i>Fechado</span>'+
+     '<span><i class="gantt-dot" style="background:#42a5f5"></i>Check-in</span>'+
+     '<span><i class="gantt-dot" style="background:#ff9800"></i>Chegou</span>'+
+     '<span><i class="gantt-dot" style="background:#9c27b0"></i>Agendado</span>'+
+     '<span class="gantt-legend-note">💡 O número à direita de cada barra = unidades (units). Clique numa linha para ver os detalhes do appointment.</span>'+
+     '</div>';
   h+='<div class="gantt-hours">';for(var i=6;i<=23;i++)h+='<span>'+(i<10?'0':'')+i+'</span>';h+='</div>';
   var startMin=6*60,endMin=24*60;var range=endMin-startMin;
   td.sort(function(a,b){return (getHourMin(a.ai)||0)-(getHourMin(b.ai)||0);});
   td.forEach(function(r){
-    var label=getDoca(r.i)||(vn(r.v)!=='\u2014'?r.v.substring(0,8):r.i.substring(r.i.length-4));
+    var label=getDoca(r.i)||(vn(r.v)!=='—'?r.v.substring(0,8):r.i.substring(r.i.length-4));
     var s=getHourMin(r.ai),e=r.cl?getHourMin(r.cl):(r.ck?getHourMin(r.ck):getHourMin(r.ar));
     if(s<0)s=startMin;if(!e||e<0)e=s+30;
     var left=Math.max(0,((s-startMin)/range)*100);
     var width=Math.max(2,((e-s)/range)*100);
     var color=r.st==='CLOSED'?'#4caf50':r.st==='CHECK_IN'?'#42a5f5':r.st==='ARRIVED'?'#ff9800':'#9c27b0';
-    h+='<div class="gantt-row"><span class="gantt-label" title="'+r.i+'">'+label+'</span>';
-    h+='<div class="gantt-track"><div class="gantt-bar" style="left:'+left+'%;width:'+width+'%;background:'+color+'" title="'+r.i+' '+fmtT(r.ai)+'-'+(r.cl?fmtT(r.cl):'?')+'">'+num(r.un)+'</div></div></div>';
+    h+='<div class="gantt-row" onclick="toggleGanttDetail(this)" title="Clique para detalhes">';
+    h+='<span class="gantt-label" title="'+r.i+'">'+label+'</span>';
+    h+='<div class="gantt-track"><div class="gantt-bar" style="left:'+left+'%;width:'+width+'%;background:'+color+'" title="'+r.i+' '+fmtT(r.ai)+'-'+(r.cl?fmtT(r.cl):'?')+'"></div></div>';
+    h+='<span class="gantt-units">'+num(r.un)+' un</span>';
+    h+='<span class="gantt-expand-icon">▸</span>';
+    h+='</div>';
+    h+='<div class="gantt-detail" style="display:none">'+
+       '<div><b>ISA:</b> <a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+r.i+'</a></div>'+
+       '<div><b>Vendor:</b> '+vn(r.v)+' &nbsp; <b>Tipo:</b> '+(r.tp||'—')+'</div>'+
+       '<div><b>Status:</b> '+ganttStatusLabel(r.st)+' &nbsp; <b>Turno:</b> '+(r.tu||'—')+'</div>'+
+       '<div><b>Agendado:</b> '+fmtT(r.ai)+' &nbsp; <b>Chegada:</b> '+(r.ar?fmtT(r.ar):'—')+' &nbsp; <b>Fechado:</b> '+(r.cl?fmtT(r.cl):'—')+'</div>'+
+       '<div><b>TAT:</b> '+(r.th?r.th+'h':'—')+' &nbsp; <b>Units:</b> '+num(r.un)+' &nbsp; <b>Cartons:</b> '+num(r.cx||0)+'</div>'+
+       '<div><b>Pontualidade:</b> '+(r.po||'—')+'</div>'+
+       '</div>';
   });
   h+='</div>';
   return h;
@@ -1174,6 +1206,8 @@ function genHandoff(data){
   var td=data.filter(function(r){return dk(r.ai)===today;});
   var checkin=td.filter(function(r){return r.st==='CHECK_IN';});
   var arrived=td.filter(function(r){return r.st==='ARRIVED';});
+  var closed=td.filter(function(r){return r.st==='CLOSED';});
+  var scheduled=td.filter(function(r){return r.st==='ARRIVAL_SCHEDULED';});
   var noShows=getNoShows(data);
   var next2h=td.filter(function(r){
     if(r.st!=='ARRIVAL_SCHEDULED')return false;
@@ -1181,18 +1215,79 @@ function genHandoff(data){
     return m>=now&&m<=now+120;
   });
   var flagged=td.filter(function(r){return getFlag(r.i);});
+  var totalUnits=td.reduce(function(s,r){return s+(r.un||0);},0);
   var pendUnits=td.filter(function(r){return r.st!=='CLOSED';}).reduce(function(s,r){return s+(r.un||0);},0);
-  var t='*\ud83d\udccb HANDOFF REPORT '+FC+' \u2014 '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'*\n\n';
-  t+='\ud83d\udce6 Units pendentes: '+num(pendUnits)+'\n\n';
+  var pontuais=closed.filter(function(r){return r.po==='Pontual';});
+  var pctPont=closed.length?(pontuais.length/closed.length*100):0;
+  var tats=closed.filter(function(r){return r.th&&r.th>0;}).map(function(r){return r.th;});
+  var avgTAT=tats.length?tats.reduce(function(a,b){return a+b;},0)/tats.length:0;
+
+  var t='*📋 HANDOFF REPORT '+FC+' — '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'*\n\n';
+
+  /* Resumo do turno */
+  t+='*📊 RESUMO DO TURNO:*\n';
+  t+='• Total ISAs hoje: '+td.length+' | Units: '+num(totalUnits)+' (pendentes: '+num(pendUnits)+')\n';
+  t+='• Status: '+closed.length+' CLOSED, '+checkin.length+' CHECK_IN, '+arrived.length+' ARRIVED, '+scheduled.length+' agendados\n';
+  t+='• Pontualidade: '+pctPont.toFixed(1)+'% ('+pontuais.length+'/'+closed.length+' fechados)\n\n';
+
+  /* TAT & motivos de atraso */
+  var poGroups={};
+  td.forEach(function(r){if(!r.po)return;poGroups[r.po]=(poGroups[r.po]||0)+1;});
+  t+='*⏱️ TAT & ATRASOS:*\n';
+  t+='• TAT médio: '+avgTAT.toFixed(2)+'h'+(_metas&&_metas.tat?(avgTAT>_metas.tat?' ⚠️ acima da meta ('+_metas.tat+'h)':' ✅ dentro da meta'):'')+'\n';
+  Object.keys(poGroups).sort(function(a,b){return poGroups[b]-poGroups[a];}).forEach(function(k){
+    var pct=td.length?(poGroups[k]/td.length*100):0;
+    t+='• '+k+': '+poGroups[k]+' ('+pct.toFixed(0)+'%)\n';
+  });
+  t+='\n';
+
+  /* Próximo ISA a descarregar */
+  var pending=td.filter(function(r){return r.st!=='CLOSED';}).slice().sort(function(a,b){return (a.ai||'').localeCompare(b.ai||'');});
+  t+='*🚛 PRÓXIMO A DESCARREGAR:*\n';
+  if(pending.length){
+    var nx=pending[0];
+    t+='• ISA '+nx.i+' — '+vn(nx.v)+' — '+fmtT(nx.ai)+' — '+num(nx.un)+' un — '+sb0(nx.st)+'\n';
+  } else {
+    t+='• Nenhum appointment pendente 🎉\n';
+  }
+  t+='\n';
+
+  /* Tendência vs ontem */
+  var yd=dk(new Date(new Date(today+'T12:00:00').getTime()-86400000).toISOString());
+  var yData=data.filter(function(r){return dk(r.ai)===yd;});
+  if(yData.length){
+    var yClosed=yData.filter(function(r){return r.st==='CLOSED';});
+    var yPont=yClosed.length?(yClosed.filter(function(r){return r.po==='Pontual';}).length/yClosed.length*100):0;
+    var yTats=yClosed.filter(function(r){return r.th&&r.th>0;}).map(function(r){return r.th;});
+    var yAvgTAT=yTats.length?yTats.reduce(function(a,b){return a+b;},0)/yTats.length:0;
+    var yUnits=yData.reduce(function(s,r){return s+(r.un||0);},0);
+    function trendArrow(cur,prev,invert){
+      if(prev===0&&cur===0)return '→';
+      var d=cur-prev;
+      if(Math.abs(d)<0.01)return '→';
+      var up=d>0;
+      return (invert?!up:up)?'📈':'📉';
+    }
+    t+='*📈 TENDÊNCIA vs ontem ('+yd+'):*\n';
+    t+='• ISAs: '+td.length+' vs '+yData.length+' '+trendArrow(td.length,yData.length,false)+'\n';
+    t+='• Units: '+num(totalUnits)+' vs '+num(yUnits)+' '+trendArrow(totalUnits,yUnits,false)+'\n';
+    t+='• TAT médio: '+avgTAT.toFixed(2)+'h vs '+yAvgTAT.toFixed(2)+'h '+trendArrow(avgTAT,yAvgTAT,true)+'\n';
+    t+='• Pontualidade: '+pctPont.toFixed(1)+'% vs '+yPont.toFixed(1)+'% '+trendArrow(pctPont,yPont,false)+'\n\n';
+  }
+
   t+='*CHECK_IN ('+checkin.length+'):*\n';
-  checkin.forEach(function(r){var mins=r.ck?Math.round((new Date()-new Date(r.ck.replace(' ','T')))/60000):'?';t+='\u2022 '+r.i+' '+vn(r.v)+' \u2014 '+num(r.un)+' un (h\u00e1 '+mins+'min)\n';});
+  checkin.forEach(function(r){var mins=r.ck?Math.round((new Date()-new Date(r.ck.replace(' ','T')))/60000):'?';t+='• '+r.i+' '+vn(r.v)+' — '+num(r.un)+' un (há '+mins+'min)\n';});
   t+='\n*ARRIVED ('+arrived.length+'):*\n';
-  arrived.forEach(function(r){t+='\u2022 '+r.i+' '+vn(r.v)+' \u2014 '+num(r.un)+' un\n';});
-  t+='\n*PR\u00d3XIMAS 2H ('+next2h.length+'):*\n';
-  next2h.forEach(function(r){t+='\u2022 '+r.i+' '+vn(r.v)+' '+fmtT(r.ai)+' \u2014 '+num(r.un)+' un\n';});
-  if(noShows.length){t+='\n*\ud83d\udea8 NO-SHOWS ('+noShows.length+'):*\n';noShows.forEach(function(r){t+='\u2022 '+r.i+' '+vn(r.v)+' +'+r._lateMin+'min \u2014 '+num(r.un)+' un\n';});}
-  if(flagged.length){t+='\n*\ud83d\udea9 ESCALADOS ('+flagged.length+'):*\n';flagged.forEach(function(r){var f=getFlag(r.i);t+='\u2022 '+r.i+' \u2014 '+f.reason+(f.note?' ('+f.note+')':'')+'\n';});}
+  arrived.forEach(function(r){t+='• '+r.i+' '+vn(r.v)+' — '+num(r.un)+' un\n';});
+  t+='\n*PRÓXIMAS 2H ('+next2h.length+'):*\n';
+  next2h.forEach(function(r){t+='• '+r.i+' '+vn(r.v)+' '+fmtT(r.ai)+' — '+num(r.un)+' un\n';});
+  if(noShows.length){t+='\n*🚨 NO-SHOWS ('+noShows.length+'):*\n';noShows.forEach(function(r){t+='• '+r.i+' '+vn(r.v)+' +'+r._lateMin+'min — '+num(r.un)+' un\n';});}
+  if(flagged.length){t+='\n*🚩 ESCALADOS ('+flagged.length+'):*\n';flagged.forEach(function(r){var f=getFlag(r.i);t+='• '+r.i+' — '+f.reason+(f.note?' ('+f.note+')':'')+'\n';});}
   return t;
+}
+function sb0(st){
+  var m={'CLOSED':'Fechado','CHECK_IN':'Check-in','ARRIVED':'Chegou','ARRIVAL_SCHEDULED':'Agendado'};
+  return m[st]||st||'—';
 }
 function showHandoff(){
   var data=turnoFilter(fd());
