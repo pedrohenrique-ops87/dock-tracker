@@ -907,7 +907,7 @@ function buildDetail(r){
       var asin=it.a||'';
       var imp=(it.p==='N'||!it.p)?'<span style="color:#ef5350">\ud83d\udd25 N</span>':'<span style="color:#4caf50">S</span>';
       h+='<tr>';
-      h+='<td><img src="https://m.media-amazon.com/images/P/'+asin+'.jpg" style="width:36px;height:36px;object-fit:contain;background:#fff;border-radius:3px" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2236%22 height=%2236%22><rect fill=%22%23232f3e%22 width=%2236%22 height=%2236%22/><text x=%2218%22 y=%2222%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%229%22>?</text></svg>\'" /></td>';
+      h+='<td>'+(asin?('<img src="https://m.media-amazon.com/images/P/'+asin+'.jpg" style="width:36px;height:36px;object-fit:contain;background:#fff;border-radius:3px" onload="imgCheck(this,36)" onerror="this.src=\'data:image/svg+xml,\'+imgPh(36)" />'):('<div style="width:36px;height:36px;background:#232f3e;border-radius:3px;display:flex;align-items:center;justify-content:center;color:#666;font-size:9px">?</div>'))+'</td>';
       h+='<td style="font-size:.68rem;color:#ff9900"><a href="'+asinFCR(asin)+'" target="_blank" style="color:#ff9900;text-decoration:none" title="Abrir no Amazon">'+asin+'</a></td>';
       h+='<td style="font-size:.68rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+((it.n||'').replace(/"/g,'&quot;'))+'">'+((it.n||'').substring(0,45))+'</td>';
       h+='<td style="font-size:.68rem">'+(it.g?it.g.replace('gl_',''):'\u2014')+'</td>';
@@ -1077,11 +1077,21 @@ function switchFC(){FC=document.getElementById('fcSel').value;computeVendorScore
 /* ─── v8.0: Deep-link helpers ─── */
 function isaLink(isa){return 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/'+FC+'/appointment/view/'+isa+'/appointmentDetail';}
 function asinFCR(asin){return 'https://fcresearch-na.aka.amazon.com/'+FC+'/results?s='+asin+'+#inventory-nav';}
+function imgPh(sz){
+  return '<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22'+sz+'%22 height=%22'+sz+'%22><rect fill=%22%23232f3e%22 width=%22'+sz+'%22 height=%22'+sz+'%22/><text x=%2250%25%22 y=%2256%25%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%229%22>?</text></svg>';
+}
+function imgCheck(img,sz){
+  if(img.naturalWidth<=1||img.naturalHeight<=1){img.onerror=null;img.src='data:image/svg+xml,'+imgPh(sz);}
+}
 function asinImg(asin,sz){
   sz=sz||32;
+  if(!asin){
+    return '<div style="width:'+sz+'px;height:'+sz+'px;background:#232f3e;border-radius:3px;display:flex;align-items:center;justify-content:center;color:#666;font-size:9px">?</div>';
+  }
   return '<img src="https://m.media-amazon.com/images/P/'+asin+'.jpg" '+
     'style="width:'+sz+'px;height:'+sz+'px;object-fit:contain;background:#fff;border-radius:3px" '+
-    'onerror="this.onerror=null;this.src=\'https://m.media-amazon.com/images/I/'+asin+'._SL75_.jpg\';this.style.opacity=\'0.6\'" '+
+    'onload="imgCheck(this,'+sz+')" '+
+    'onerror="this.onerror=null;this.src=\'https://m.media-amazon.com/images/I/'+asin+'._SL75_.jpg\';this.onload=function(){imgCheck(this,'+sz+')}" '+
     'loading="lazy">';
 }
 
