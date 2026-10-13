@@ -718,7 +718,8 @@ function fmtT(s){if(!s||s==='null')return '\u2014';var p=s.split(' ');return p[1
 function dk(s){if(!s||s==='null')return '';return s.split(' ')[0];}
 function dn(k){var d=new Date(k+'T12:00:00');return['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][d.getDay()];}
 function dp(r){if(r.st==='CLOSED')return '\u2014';if(!r.ai||r.ai==='null')return '\u2014';var d=new Date(r.ai.replace(' ','T'));var diff=Math.ceil((d-new Date())/(864e5));return diff>=0?diff+'d':'\u2014';}
-function sb(st){st=st||'';return '<span class="badge st-'+st+'">'+(st?st.replace('ARRIVAL_',''):'—')+'</span>';}
+var STATUS_LABEL={'PENDING_SCHEDULED':'Pendente de chegada','ARRIVAL_SCHEDULED':'Pendente de chegada','ARRIVED':'Chegada','CHECKED_IN':'Descarregando','CHECK_IN':'Descarregando','UNLOADED':'Finalizando descarga','CLOSED':'Finalizado'};
+function sb(st){st=st||'';return '<span class="badge st-'+st+'">'+(st?(STATUS_LABEL[st]||st):'—')+'</span>';}
 function pb(po){return '<span class="badge po-'+(po||'')+'">'+((po||'\u2014'))+'</span>';}
 function vn(v){return (!v||v==='null'||v==='')?'\u2014':v;}
 function fd(){return D.filter(function(r){return r.fc===FC;});}
@@ -1389,12 +1390,20 @@ function buildWeeklySummary(data){
   var topV=Object.keys(vg).sort(function(a,b){return vg[b]-vg[a];}).slice(0,3);
   // Top 3 worst TAT
   var topT=cl.sort(function(a,b){return b.th-a.th;}).slice(0,3);
-  var h='<b>\ud83d\udcf0 Resumo Semanal ('+fmtD(d7.toISOString())+' a '+fmtD(today.toISOString())+')</b><br><br>';
+  var h='<b>\ud83d\udcf0 Resumo Semanal ('+d7.toISOString().slice(5,10)+' a '+today.toISOString().slice(5,10)+')</b><br><br>';
   h+='ISAs: '+wk.length+' | Units: '+num(units)+' | TAT M\u00e9dio: '+avgTat.toFixed(2)+'h | Pont: '+pont.toFixed(1)+'%<br><br>';
   h+='<b>Top 3 Vendors (volume):</b><br>';
-  topV.forEach(function(v,i){h+=(i+1)+'. '+v+' \u2014 '+num(vg[v])+' units<br>';});
+  var maxVgU=topV.length?vg[topV[0]]:1;
+  topV.forEach(function(v,i){
+    var w=maxVgU?Math.round(vg[v]/maxVgU*100):0;
+    h+='<div class="barw" style="margin-bottom:4px"><span class="barlbl">'+v+'</span><div class="bar tat-bar-green" style="width:'+w+'%"></div><span class="barval">'+num(vg[v])+' un</span></div>';
+  });
   h+='<br><b>Top 3 Maiores TATs:</b><br>';
-  topT.forEach(function(r,i){h+=(i+1)+'. '+r.i+' ('+vn(r.v)+') \u2014 '+r.th+'h<br>';});
+  var maxTT=topT.length?topT[0].th:1;
+  topT.forEach(function(r,i){
+    var w=maxTT?Math.round(r.th/maxTT*100):0;
+    h+='<div class="barw" style="margin-bottom:4px"><span class="barlbl">'+r.i+' ('+vn(r.v)+')</span><div class="bar '+tatBarColor(r.th)+'" style="width:'+w+'%"></div><span class="barval">'+r.th.toFixed(2)+'h</span></div>';
+  });
   return h;
 }
 
