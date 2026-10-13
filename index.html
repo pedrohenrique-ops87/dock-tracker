@@ -1291,7 +1291,7 @@ function toggleGanttDetail(rowEl){
   if(icon)icon.textContent=open?'▸':'▾';
 }
 function buildGantt(data,today){
-  var td=data.filter(function(r){return dk(r.ai)===today;});
+  var td=data.filter(function(r){return dk(r.ai)===today && (r.un||0)>0;});
   if(!td.length)return '';
   var h='<div class="gantt-wrap"><b style="color:#ff9900;font-size:.82rem">📅 Timeline da Doca</b>';
   h+='<div class="gantt-legend">'+
