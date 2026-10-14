@@ -819,6 +819,16 @@ function saveLoginsConfig(raw){
   var fc=FC;
   pushManual(function(o){o.config=o.config||{};o.config['logins_'+fc]=list;},'💾 Logins salvos e sincronizados!');
 }
+function saveGhTokenField(val){
+  val=(val||'').trim();
+  if(!val){showToast('⚠️ Cole um token antes de salvar');return;}
+  setGhToken(val);
+  showToast('✅ Token salvo! Sincronizando...');
+  pushManual(function(o){},'🔄 Sincronização confirmada!').then(function(ok){
+    if(!ok){showToast('⚠️ Token salvo, mas a sincronização falhou — confira o token');}
+    render();
+  });
+}
 function showToast(msg){var t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;bottom:80px;right:20px;background:#2e7d32;color:#fff;padding:10px 20px;border-radius:8px;z-index:99999;font-size:.85rem;box-shadow:0 4px 12px rgba(0,0,0,.5);transition:opacity .5s';document.body.appendChild(t);setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove();},500);},2000);}
 function saveISAFields(isa){var d=document.getElementById('sel_doca_'+isa);if(d)setDoca(isa,d.value);var l=document.getElementById('sel_login_'+isa);if(l)setLogin(isa,l.value);var tt=document.getElementById('sel_tt_'+isa);if(tt)setTT(isa,tt.value);var o=document.getElementById('sel_obs_'+isa);if(o)setObs(isa,o.value);render();}
 
@@ -2319,6 +2329,15 @@ function renderConfig(data){
   h+='<div class="cfg-row"><label>Intervalo:</label><select style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:4px 8px;border-radius:4px" onchange="_refreshInterval=parseInt(this.value);saveRefreshConfig();startAutoRefresh()">';
   [5,10,15,30].forEach(function(m){h+='<option value="'+m+'"'+(_refreshInterval===m?' selected':'')+'>'+m+' min</option>';});
   h+='</select></div></div>';
+  // Sincronizacao entre computadores (token GitHub)
+  h+='<div class="cfg-section"><h3>🔑 Sincronização entre computadores</h3>';
+  var _hasTok=!!getGhToken();
+  h+='<div style="font-size:.75rem;color:#999;margin-bottom:8px">Cole aqui o token compartilhado para que Doca / Login / Obs / Turno / Perfil / Lado apareçam em todos os computadores automaticamente. Peça o token a quem já configurou — não precisa criar conta no GitHub.</div>';
+  h+='<div class="cfg-row"><span style="font-size:.8rem">'+(_hasTok?'✅ Token configurado neste computador':'⚠️ Nenhum token configurado — edições ficam só neste computador')+'</span></div>';
+  h+='<div class="cfg-row"><input type="password" id="cfgGhToken" placeholder="Cole o token aqui (ghp_... ou github_pat_...)" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:6px 8px;border-radius:4px;width:100%;font-size:.78rem;font-family:monospace"></div>';
+  h+='<div class="cfg-row"><button class="btn" onclick="saveGhTokenField(document.getElementById(\'cfgGhToken\').value)">💾 Salvar token</button> ';
+  h+='<button class="btn" style="background:#5c2b29" onclick="clearGhToken();render()">🗑️ Remover token deste computador</button></div>';
+  h+='</div>';
   // Docas
   h+='<div class="cfg-section"><h3>🚧 Docas Disponíveis</h3>';
   var _docaLS=(function(){try{return localStorage.getItem('dt_docas_'+FC)}catch(e){return null}})()||'D01\nD02\nD03\nD04\nD05\nD06\nD07\nD08\nD09\nD10\nD151\nD152\nD153\nD154\nD155\nD156\nD157\nD158\nD159\nD160';
