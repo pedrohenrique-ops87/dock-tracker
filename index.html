@@ -27,7 +27,7 @@ select:focus{outline:none;border-color:#ffb84d}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .kpi{background:#232f3e;border-radius:8px;padding:14px;border-left:4px solid #ff9900}
 .kpi.g{border-left-color:#4caf50}.kpi.b{border-left-color:#42a5f5}
-.kpi.p{border-left-color:#ab47bc}.kpi.r{border-left-color:#ef5350}
+.kpi.p{border-left-color:#ab47bc}.kpi.r{border-left-color:#ef5350}.kpi.y{border-left-color:#ffca28}
 .kpi .val{font-size:1.5rem;font-weight:700;color:#fff}
 .kpi .lbl{font-size:.72rem;color:#999;margin-top:2px}
 
@@ -432,7 +432,7 @@ body.light-mode .btn-header:hover{background:#cbd5e1;border-color:#ff9900}
 <h1>📊 Dock Tracker Dashboard <span class="v">v8.0</span></h1>
 <div class="hdr-r">
 <select id="fcSel" onchange="switchFC()"><option value="REC1">REC1</option><option value="REC3">REC3</option></select>
-<select id="turnoSel" onchange="switchTurno()" style="margin-left:4px"><option value="Todos">Todos</option><option value="1">Turno 1</option><option value="2">Turno 2</option></select>
+<select id="turnoSel" onchange="switchTurno()" style="margin-left:4px"><option value="Todos">Todos</option><option value="1">Turno 1</option><option value="2">Turno 2</option></select><select id="tipoSel" onchange="switchTipo()" style="margin-left:4px"><option value="Todos">Todos</option><option value="CARP">CARP</option><option value="TRANSSHIP">Transship</option><option value="OTHER">Other</option><option value="SMALL_PARCEL">Small Parcel</option></select>
 <div class="refresh-bar"><button class="btn-refresh" onclick="doRefresh()" title="Atualizar agora">🔄</button><span id="arBadge"></span><span class="countdown" id="countdown"></span><span style="color:#666;font-size:.65rem">Atualizado: <span id="lastRefresh"></span></span></div>
 <button class="btn-header" onclick="copiarResumo()" title="Copiar resumo para Slack">📋 Resumo</button><button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema">🌙</button><span class="by">by Pedro Silva</span>
 </div>
@@ -720,7 +720,7 @@ function fmtT(s){if(!s||s==='null')return '\u2014';var p=s.split(' ');return p[1
 function dk(s){if(!s||s==='null')return '';return s.split(' ')[0];}
 function dn(k){var d=new Date(k+'T12:00:00');return['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][d.getDay()];}
 function dp(r){if(r.st==='CLOSED')return '\u2014';if(!r.ai||r.ai==='null')return '\u2014';var d=new Date(r.ai.replace(' ','T'));var diff=Math.ceil((d-new Date())/(864e5));return diff>=0?diff+'d':'\u2014';}
-var STATUS_LABEL={'PENDING_SCHEDULED':'Pendente de chegada','ARRIVAL_SCHEDULED':'Pendente de chegada','ARRIVED':'Chegada','CHECKED_IN':'Descarregando','CHECK_IN':'Descarregando','UNLOADED':'Finalizando descarga','CLOSED':'Finalizado'};
+var STATUS_LABEL={'PENDING_SCHEDULE':'Pendente','ARRIVAL_SCHEDULED':'Agendado','ARRIVED':'Chegada','CHECKED_IN':'Descarregando','CHECK_IN':'Descarregando','UNLOADED':'Finalizando descarga','CLOSED':'Finalizado'};
 function sb(st){st=st||'';return '<span class="badge st-'+st+'">'+(st?(STATUS_LABEL[st]||st):'—')+'</span>';}
 function pb(po){return '<span class="badge po-'+(po||'')+'">'+((po||'\u2014'))+'</span>';}
 function vn(v){return (!v||v==='null'||v==='')?'\u2014':v;}
@@ -1187,6 +1187,9 @@ function dayFilterData(data){
 }
 
 var _curTurno='Todos';
+var _curTipo='Todos';
+function switchTipo(){_curTipo=document.getElementById('tipoSel').value;render();}
+function tipoFilter(data){if(_curTipo==='Todos')return data;return data.filter(function(r){return r.tp===_curTipo;});}
 function saveTurnoConfig(){try{localStorage.setItem('dt_config_turnos',JSON.stringify(_turnoConfig));}catch(e){}}
 function switchTurno(){_curTurno=document.getElementById('turnoSel').value;render();}
 function getHourMin(s){if(!s||s==='null')return -1;var p=s.split(' ');if(!p[1])return -1;var t=p[1].split(':');return parseInt(t[0])*60+parseInt(t[1]);}
@@ -1232,7 +1235,7 @@ function openTab(n){
   render();
 }
 function render(){try{
-  var _base=turnoFilter(fd());
+  var _base=tipoFilter(turnoFilter(fd()));
   var data=(curTab===1||curTab===3)?_base:dayFilterData(_base);
   computeVendorScores(data);
   var funcs=[renderHoje,render7d,renderVG,renderTAT,renderVendors,renderEOS,renderASINs,renderHistorico,renderConfig,renderTutorial];
@@ -1289,7 +1292,7 @@ function buildHeatmap(data,today){
 
 /* ─── Gantt Timeline builder ─── */
 function ganttStatusLabel(st){
-  var m={'CLOSED':'Fechado','CHECK_IN':'Check-in','ARRIVED':'Chegou','ARRIVAL_SCHEDULED':'Agendado'};
+  var m={'CLOSED':'Fechado','CHECK_IN':'Check-in','ARRIVED':'Chegou','ARRIVAL_SCHEDULED':'Agendado','PENDING_SCHEDULE':'Pendente'};
   return m[st]||st||'—';
 }
 function toggleGanttDetail(rowEl){
@@ -1309,6 +1312,7 @@ function buildGantt(data,today){
      '<span><i class="gantt-dot" style="background:#42a5f5"></i>Check-in</span>'+
      '<span><i class="gantt-dot" style="background:#ff9800"></i>Chegou</span>'+
      '<span><i class="gantt-dot" style="background:#9c27b0"></i>Agendado</span>'+
+     '<span><i class="gantt-dot" style="background:#ffca28"></i>Pendente</span>'+
      '<span class="gantt-legend-note">💡 O número à direita de cada barra = unidades (units). Clique numa linha para ver os detalhes do appointment.</span>'+
      '</div>';
   h+='<div class="gantt-hours">';for(var i=6;i<=23;i++)h+='<span>'+(i<10?'0':'')+i+'</span>';h+='</div>';
@@ -1320,7 +1324,7 @@ function buildGantt(data,today){
     if(s<0)s=startMin;if(!e||e<0)e=s+30;
     var left=Math.max(0,((s-startMin)/range)*100);
     var width=Math.max(2,((e-s)/range)*100);
-    var color=r.st==='CLOSED'?'#4caf50':r.st==='CHECK_IN'?'#42a5f5':r.st==='ARRIVED'?'#ff9800':'#9c27b0';
+    var color=r.st==='CLOSED'?'#4caf50':r.st==='CHECK_IN'?'#42a5f5':r.st==='ARRIVED'?'#ff9800':r.st==='PENDING_SCHEDULE'?'#ffca28':'#9c27b0';
     h+='<div class="gantt-row" onclick="toggleGanttDetail(this)" title="Clique para detalhes">';
     h+='<span class="gantt-label" title="'+r.i+'">'+label+'</span>';
     h+='<div class="gantt-track"><div class="gantt-bar" style="left:'+left+'%;width:'+width+'%;background:'+color+'" title="'+r.i+' '+fmtT(r.ai)+'-'+(r.cl?fmtT(r.cl):'?')+'"></div></div>';
@@ -1532,6 +1536,8 @@ function renderHoje(data){
   var cl=td.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
   var avgTat=cl.length?cl.reduce(function(s,r){return s+r.th;},0)/cl.length:0;
   var pont=td.filter(function(r){return r.po==='Pontual';}).length;
+  var tinUnits=td.filter(function(r){return r.tp==='TRANSSHIP';}).reduce(function(s,r){return s+(r.un||0);},0);
+  var tinCount=td.filter(function(r){return r.tp==='TRANSSHIP';}).length;
   var sts={};td.forEach(function(r){sts[r.st]=(sts[r.st]||0)+1;});
   var noShows=getNoShows(data);
   // Perfil tracking
@@ -1558,6 +1564,7 @@ function renderHoje(data){
   h+='<div class="kpi-grid">';
   h+='<div class="kpi"><div class="val">'+td.length+'</div><div class="lbl">Appointments ('+fmtD(today+' ')+')</div></div>';
   h+='<div class="kpi b"><div class="val">'+num(units)+'</div><div class="lbl">Units</div></div>';
+  h+='<div class="kpi y"><div class="val">'+num(tinUnits)+'</div><div class="lbl">Units Transship ('+tinCount+' ISAs)</div></div>';
   h+='<div class="kpi g"><div class="val">'+num(cxs)+'</div><div class="lbl">Cartons</div></div>';
   h+='<div class="kpi p"><div class="val">'+avgTat.toFixed(2)+'h</div><div class="lbl">TAT M\u00e9dio</div></div>';
   h+='<div class="kpi r"><div class="val">'+pct(pont,td.length)+'</div><div class="lbl">Pontualidade</div></div>';
@@ -1566,12 +1573,13 @@ function renderHoje(data){
   h+='</div>';
   // Status + perfil mini cards
   h+='<div class="kpi-grid" style="margin-bottom:12px">';
-  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED'].forEach(function(st){
-    var cls=st==='CLOSED'?'g':st==='CHECK_IN'?'b':st==='ARRIVED'?'r':'p';
+  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED','PENDING_SCHEDULE'].forEach(function(st){
+    var cls=st==='CLOSED'?'g':st==='CHECK_IN'?'b':st==='ARRIVED'?'r':st==='PENDING_SCHEDULE'?'y':'p';
+    var lbl=st==='PENDING_SCHEDULE'?'PENDENTE':st.replace('ARRIVAL_','');
     var isActive=_statusFilter===st;
     h+='<div class="kpi '+cls+' sf-card'+(isActive?' sf-active':'')+'" style="padding:8px 12px" onclick="toggleStatusFilter(\''+st+'\')">';
     h+='<div class="val" style="font-size:1.1rem">'+(sts[st]||0)+'</div>';
-    h+='<div class="lbl">'+st.replace('ARRIVAL_','')+'</div>';
+    h+='<div class="lbl">'+lbl+'</div>';
     h+='<div class="sf-indicator">\ud83d\udd0d filtro ativo</div>';
     h+='</div>';
   });
@@ -1843,6 +1851,7 @@ function renderEOS(data){if(!data)data=[];
   h+='<div class="kpi b"><div class="val">'+(sts['CHECK_IN']||0)+'</div><div class="lbl">CHECK IN</div></div>';
   h+='<div class="kpi" style="border-left-color:#fdd835"><div class="val">'+(sts['ARRIVED']||0)+'</div><div class="lbl">ARRIVED</div></div>';
   h+='<div class="kpi p"><div class="val">'+(sts['ARRIVAL_SCHEDULED']||0)+'</div><div class="lbl">SCHEDULED</div></div>';
+  h+='<div class="kpi y"><div class="val">'+(sts['PENDING_SCHEDULE']||0)+'</div><div class="lbl">PENDENTE</div></div>';
   h+='</div>';
   h+='<div class="eos-blk"><h3>\ud83d\udce6 Volume \u2014 '+fmtD(today+' ')+'</h3><div class="kpi-grid">';
   h+='<div class="kpi"><div class="val">'+td.length+'</div><div class="lbl">ISAs</div></div>';
@@ -1882,7 +1891,7 @@ function copyEOS(){
   var avgTat=cl.length?cl.reduce(function(s,r){return s+r.th;},0)/cl.length:0;
   var pont=td.filter(function(r){return r.po==='Pontual';}).length;
   var t='*EOS Report '+FC+' \u2014 '+fmtD(today+' ')+'*\nISAs: '+td.length+' | Units: '+num(units)+' | Cartons: '+num(cxs)+'\nTAT M\u00e9dio: '+avgTat.toFixed(2)+'h | Pontualidade: '+pct(pont,td.length)+'\n';
-  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED'].forEach(function(s){if(sts[s])t+=s+': '+sts[s]+' | ';});
+  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED','PENDING_SCHEDULE'].forEach(function(s){if(sts[s])t+=s+': '+sts[s]+' | ';});
   t+='\n\n*Top Offenders:*\n';
   cl.sort(function(a,b){return b.th-a.th;}).slice(0,5).forEach(function(r){t+='\u2022 '+(vn(r.v)==='\u2014'?r.i:r.v)+' \u2014 '+r.th+'h ('+num(r.un)+' un) '+r.po+'\n';});
   (function(){try{navigator.clipboard.writeText(t).then(function(){showToast('\u2705 Copiado!');})}catch(e){showToast('Copiado (fallback)')}})();
@@ -2674,7 +2683,7 @@ function aiSummaryToday(data){
   h+='<tr><td>Units</td><td><b>'+num(units)+'</b></td></tr>';
   h+='<tr><td>TAT M\u00e9dio</td><td><b>'+avg.toFixed(2)+'h</b></td></tr>';
   h+='<tr><td>Pontualidade</td><td><b>'+pont.toFixed(1)+'%</b></td></tr>';
-  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED'].forEach(function(st){
+  ['CLOSED','CHECK_IN','ARRIVED','ARRIVAL_SCHEDULED','PENDING_SCHEDULE'].forEach(function(st){
     if(sts[st])h+='<tr><td>'+st+'</td><td>'+sts[st]+'</td></tr>';
   });
   h+='</table>';
