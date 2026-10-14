@@ -552,11 +552,20 @@ async function loadData() {
             _dtLoadCount++;
 
             var syncDate = json.lastSync ? new Date(json.lastSync).toLocaleString('pt-BR') : '';
+            var ageMin = json.lastSync ? Math.round((Date.now() - new Date(json.lastSync).getTime()) / 60000) : null;
+            var ageTxt = '';
+            var statusIcon = '\u2705';
+            var statusColor = '#4caf50';
+            if (ageMin !== null) {
+                ageTxt = ageMin < 60 ? (ageMin + 'min atr\u00e1s') : (Math.floor(ageMin/60) + 'h' + (ageMin%60) + 'min atr\u00e1s');
+                if (ageMin >= 60) { statusIcon = '\ud83d\udd34'; statusColor = '#f85149'; }
+                else if (ageMin >= 20) { statusIcon = '\u26a0\ufe0f'; statusColor = '#ffca28'; }
+            }
             _showLoadMsg(
-                '\u2705 ' + D.length + ' agendamentos, ' + S.length + ' sort' +
-                (syncDate ? ' \u2022 Sync: ' + syncDate : '') +
+                statusIcon + ' ' + D.length + ' agendamentos, ' + S.length + ' sort' +
+                (syncDate ? ' \u2022 Sync: ' + syncDate + (ageTxt ? ' (' + ageTxt + ')' : '') : '') +
                 ' \u2022 FC: ' + FC,
-                '#4caf50'
+                statusColor
             );
 
             await loadManual();
