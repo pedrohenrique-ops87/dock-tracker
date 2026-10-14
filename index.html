@@ -1306,7 +1306,12 @@ function toggleGanttDetail(rowEl){
 function buildGantt(data,today){
   var td=data.filter(function(r){return dk(r.ai)===today && (r.un||0)>0;});
   if(!td.length)return '';
-  var h='<div class="gantt-wrap"><b style="color:#ff9900;font-size:.82rem">📅 Timeline da Doca</b>';
+  var h='<div class="gantt-wrap">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="xToggle(\'ganttBody\')">';
+  h+='<b style="color:#ff9900;font-size:.82rem">📅 Timeline da Doca ('+td.length+')</b>';
+  h+='<span id="a_ganttBody" style="color:#888;font-size:.8rem">▼</span>';
+  h+='</div>';
+  h+='<div class="dbody open" id="ganttBody">';
   h+='<div class="gantt-legend">'+
      '<span><i class="gantt-dot" style="background:#4caf50"></i>Fechado</span>'+
      '<span><i class="gantt-dot" style="background:#42a5f5"></i>Check-in</span>'+
@@ -1340,7 +1345,8 @@ function buildGantt(data,today){
        '<div><b>Pontualidade:</b> '+(r.po||'—')+'</div>'+
        '</div>';
   });
-  h+='</div>';
+  h+='</div>'; /* close dbody */
+  h+='</div>'; /* close gantt-wrap */
   return h;
 }
 
