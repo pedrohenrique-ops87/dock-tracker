@@ -1558,34 +1558,50 @@ function buildWeeklySummary(data){
   var todayStr=getToday(data);
   var today=new Date(todayStr+'T12:00:00');
   var d7=new Date(today);d7.setDate(d7.getDate()-7);
-  var wk=data.filter(function(r){return dk(r.ai)>=d7.toISOString().split('T')[0];});
+  var d7Str=d7.toISOString().split('T')[0];
+  var wk=data.filter(function(r){return dk(r.ai)>=d7Str;});
   var NOT_ARRIVED={'ARRIVAL_SCHEDULED':1,'PENDING_SCHEDULE':1};
-  var notArrived=wk.filter(function(r){return NOT_ARRIVED[r.st];});
-  var arrived=wk.filter(function(r){return !NOT_ARRIVED[r.st];});
-  var cl=arrived.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
-  var unitsArrived=arrived.reduce(function(s,r){return s+(r.un||0);},0);
-  var unitsNotArrived=notArrived.reduce(function(s,r){return s+(r.un||0);},0);
-  var avgTat=cl.length?cl.reduce(function(s,r){return s+r.th;},0)/cl.length:0;
-  var pont=arrived.length?arrived.filter(function(r){return r.po==='Pontual';}).length/arrived.length*100:0;
-  // Top 3 vendors by volume (apenas recebido - exclui ainda nao chegou)
-  var vg={};arrived.forEach(function(r){var v=vn(r.v)==='\u2014'?'(TRANSSHIP)':r.v;vg[v]=(vg[v]||0)+(r.un||0);});
-  var topV=Object.keys(vg).sort(function(a,b){return vg[b]-vg[a];}).slice(0,3);
-  // Top 3 worst TAT
-  var topT=cl.sort(function(a,b){return b.th-a.th;}).slice(0,3);
+  function summarize(group){
+    var arrived=group.filter(function(r){return !NOT_ARRIVED[r.st];});
+    var notArrived=group.filter(function(r){return NOT_ARRIVED[r.st];});
+    var proximos=notArrived.filter(function(r){return dk(r.ai)>todayStr;});
+    var atrasados=notArrived.filter(function(r){return dk(r.ai)<=todayStr;});
+    var cl=arrived.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
+    var uArr=arrived.reduce(function(s,r){return s+(r.un||0);},0);
+    var uProx=proximos.reduce(function(s,r){return s+(r.un||0);},0);
+    var uAtr=atrasados.reduce(function(s,r){return s+(r.un||0);},0);
+    var avgTat=cl.length?cl.reduce(function(s,r){return s+r.th;},0)/cl.length:0;
+    var pont=arrived.length?arrived.filter(function(r){return r.po==='Pontual';}).length/arrived.length*100:0;
+    var vg={};arrived.forEach(function(r){var v=vn(r.v)==='\u2014'?'(Sem vendor)':r.v;vg[v]=(vg[v]||0)+(r.un||0);});
+    var topV=Object.keys(vg).sort(function(a,b){return vg[b]-vg[a];}).slice(0,3);
+    return {arrived:arrived,uArr:uArr,proximos:proximos,uProx:uProx,atrasados:atrasados,uAtr:uAtr,avgTat:avgTat,pont:pont,vg:vg,topV:topV,cl:cl};
+  }
+  var carpG=summarize(wk.filter(function(r){return r.tp!=='TRANSSHIP';}));
+  var tsG=summarize(wk.filter(function(r){return r.tp==='TRANSSHIP';}));
+  function blockHtml(label,g,color){
+    var h='<div style="margin-bottom:10px;padding:8px;background:#1a2232;border-radius:6px;border-left:3px solid '+color+'"><b style="color:'+color+'">'+label+'</b><br>';
+    h+='Recebido: '+g.arrived.length+' ISAs | '+num(g.uArr)+' un | TAT M\u00e9dio*: '+g.avgTat.toFixed(2)+'h | Pont: '+g.pont.toFixed(1)+'%<br>';
+    h+='Pr\u00f3ximos dias (agendado, ainda n\u00e3o venceu): '+g.proximos.length+' ISAs | '+num(g.uProx)+' un<br>';
+    h+='<span style="color:'+(g.atrasados.length?'#ef5350':'#4caf50')+'">N\u00e3o chegaram (venceu e n\u00e3o chegou): '+g.atrasados.length+' ISAs | '+num(g.uAtr)+' un</span>';
+    if(g.topV.length){
+      h+='<div style="font-size:.72rem;margin-top:4px;color:#999">Top vendors: '+g.topV.map(function(v){return v+' ('+num(g.vg[v])+'un)';}).join(', ')+'</div>';
+    }
+    h+='</div>';
+    return h;
+  }
   var h='<b>\ud83d\udcf0 Resumo Semanal ('+d7.toISOString().slice(5,10)+' a '+today.toISOString().slice(5,10)+')</b><br><br>';
-  h+='<b>Recebido:</b> '+arrived.length+' ISAs | '+num(unitsArrived)+' un | TAT M\u00e9dio: '+avgTat.toFixed(2)+'h | Pont: '+pont.toFixed(1)+'%<br>';
-  h+='<b>N\u00e3o chegaram (Agendado/Pendente):</b> '+notArrived.length+' ISAs | '+num(unitsNotArrived)+' un<br><br>';
-  h+='<b>Top 3 Vendors (volume recebido):</b><br>';
-  var maxVgU=topV.length?vg[topV[0]]:1;
-  topV.forEach(function(v,i){
-    var w=maxVgU?Math.round(vg[v]/maxVgU*100):0;
-    h+='<div class="barw" style="margin-bottom:4px"><span class="barlbl">'+v+'</span><div class="bar tat-bar-green" style="width:'+w+'%"></div><span class="barval">'+num(vg[v])+' un</span></div>';
-  });
-  h+='<br><b>Top 3 Maiores TATs:</b><br>';
-  var maxTT=topT.length?topT[0].th:1;
-  topT.forEach(function(r,i){
-    var w=maxTT?Math.round(r.th/maxTT*100):0;
-    h+='<div class="barw" style="margin-bottom:4px"><span class="barlbl">'+r.i+' ('+vn(r.v)+')</span><div class="bar '+tatBarColor(r.th)+'" style="width:'+w+'%"></div><span class="barval">'+r.th.toFixed(2)+'h</span></div>';
+  h+=blockHtml('\ud83d\udce6 CARP',carpG,'#ff9900');
+  h+=blockHtml('\ud83d\udd04 TRANSSHIP',tsG,'#58a6ff');
+  h+='<div style="font-size:.68rem;color:#777;margin:-4px 0 8px 2px">* TAT M\u00e9dio desconsidera ISAs com Pont. = Atraso motorista</div>';
+  // Top 3 worst TAT combinando os dois grupos, com a tag do tipo
+  var allCl=carpG.cl.map(function(r){return {r:r,tipo:'CARP'};}).concat(tsG.cl.map(function(r){return {r:r,tipo:'TRANSSHIP'};}));
+  allCl.sort(function(a,b){return b.r.th-a.r.th;});
+  var topT=allCl.slice(0,3);
+  h+='<b>Top 3 Maiores TATs (CARP+TRANSSHIP):</b><br>';
+  var maxTT=topT.length?topT[0].r.th:1;
+  topT.forEach(function(x){
+    var w=maxTT?Math.round(x.r.th/maxTT*100):0;
+    h+='<div class="barw" style="margin-bottom:4px"><span class="barlbl">'+x.r.i+' ('+vn(x.r.v)+' \u00b7 '+x.tipo+')</span><div class="bar '+tatBarColor(x.r.th)+'" style="width:'+w+'%"></div><span class="barval">'+x.r.th.toFixed(2)+'h</span></div>';
   });
   return h;
 }
