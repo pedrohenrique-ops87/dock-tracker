@@ -572,6 +572,7 @@ async function loadData() {
             );
 
             await loadManual();
+            _applyRemoteConfig();
 
             populateFcSelect();
             buildDayPicker();
@@ -800,6 +801,11 @@ async function loadManual(){
     }
   }catch(e){console.warn('[DT-Manual] load falhou, usando so localStorage',e);}
 }
+function _applyRemoteConfig(){
+  var c=MANUAL.config||{};
+  if(c.turnos){_turnoConfig=c.turnos;try{localStorage.setItem('dt_config_turnos',JSON.stringify(_turnoConfig));}catch(e){}}
+  if(c.metas){_metas=c.metas;try{localStorage.setItem('dt_metas',JSON.stringify(_metas));}catch(e){}}
+}
 async function pushManual(mutator, successMsg){
   var token=getGhToken();
   if(!token){
@@ -936,7 +942,7 @@ function vsb(v){
 
 /* ─── Metas ─── */
 var _metas=(function(){try{var s=localStorage.getItem('dt_metas');if(s)return JSON.parse(s);}catch(e){}return {tat:0.5,pont:85};})();
-function saveMetas(){try{localStorage.setItem('dt_metas',JSON.stringify(_metas));}catch(e){}}
+function saveMetas(){try{localStorage.setItem('dt_metas',JSON.stringify(_metas));}catch(e){}MANUAL.config=MANUAL.config||{};MANUAL.config.metas=_metas;pushManual(function(o){o.config=o.config||{};o.config.metas=_metas;},'\ud83c\udfaf Metas salvas e sincronizadas!');}
 
 /* ─── No-Show Detection ─── */
 function getNoShows(data){
@@ -1247,7 +1253,7 @@ var _curTurno='Todos';
 var _curTipo='Todos';
 function switchTipo(){_curTipo=document.getElementById('tipoSel').value;render();}
 function tipoFilter(data){if(_curTipo==='Todos')return data;return data.filter(function(r){return r.tp===_curTipo;});}
-function saveTurnoConfig(){try{localStorage.setItem('dt_config_turnos',JSON.stringify(_turnoConfig));}catch(e){}}
+function saveTurnoConfig(){try{localStorage.setItem('dt_config_turnos',JSON.stringify(_turnoConfig));}catch(e){}MANUAL.config=MANUAL.config||{};MANUAL.config.turnos=_turnoConfig;pushManual(function(o){o.config=o.config||{};o.config.turnos=_turnoConfig;},'\u23f0 Turnos salvos e sincronizados!');}
 function switchTurno(){_curTurno=document.getElementById('turnoSel').value;render();}
 function getHourMin(s){if(!s||s==='null')return -1;var p=s.split(' ');if(!p[1])return -1;var t=p[1].split(':');return parseInt(t[0])*60+parseInt(t[1]);}
 function turnoFilter(data){
@@ -1521,7 +1527,7 @@ function buildWoW(data){
   var tw=weekData(thisWeekStart,today);
   var lw=weekData(lastWeekStart,lastWeekEnd);
   function metrics(d){
-    var cl=d.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
+    var cl=d.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
     return {
       isas:d.length,
       units:d.reduce(function(s,r){return s+(r.un||0);},0),
@@ -1795,7 +1801,7 @@ function filterVG(){
 /* ─── TAT & Pont. Tab ─── */
 function renderTAT(data){if(!data)data=[];
   var el=document.getElementById('p3');
-  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
+  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
   var tats=cl.map(function(r){return r.th;}).sort(function(a,b){return a-b;});
   var avg=tats.length?tats.reduce(function(s,v){return s+v;},0)/tats.length:0;
   var p90=tats.length?tats[Math.floor(tats.length*.9)]:0;
@@ -1805,13 +1811,14 @@ function renderTAT(data){if(!data)data=[];
   h+='<input class="tbl-search" id="sTat" placeholder="🔍 Buscar..." oninput="filterTatTbl()">';
   h+='</div>';
   h+='<div class="kpi-grid">';
-  h+='<div class="kpi p"><div class="val">'+avg.toFixed(2)+'h</div><div class="lbl">TAT M\u00e9dio</div></div>';
-  h+='<div class="kpi r"><div class="val">'+p90.toFixed(2)+'h</div><div class="lbl">TAT P90</div></div>';
+  h+='<div class="kpi p" title="Exclui ISAs com atraso de motorista (fora do controle da doca)"><div class="val">'+avg.toFixed(2)+'h</div><div class="lbl">TAT M\u00e9dio*</div></div>';
+  h+='<div class="kpi r" title="Exclui ISAs com atraso de motorista (fora do controle da doca)"><div class="val">'+p90.toFixed(2)+'h</div><div class="lbl">TAT P90*</div></div>';
   h+='<div class="kpi g"><div class="val">'+pct(pont,data.length)+'</div><div class="lbl">Pontualidade %</div></div>';
   h+='<div class="kpi b"><div class="val">'+data.length+'</div><div class="lbl">Total ISAs</div></div>';
-  h+='<div class="kpi"><div class="val">\ud83c\udfaf '+metTat.toFixed(0)+'%</div><div class="lbl">Dentro meta TAT</div>';
+  h+='<div class="kpi" title="Exclui ISAs com atraso de motorista (fora do controle da doca)"><div class="val">\ud83c\udfaf '+metTat.toFixed(0)+'%</div><div class="lbl">Dentro meta TAT*</div>';
   h+='<div class="pbar-wrap"><div class="pbar" style="width:'+metTat+'%;background:'+(metTat>=80?'#4caf50':'#ef5350')+'"></div></div></div>';
   h+='</div>';
+  h+='<div style="font-size:.68rem;color:#777;margin:-4px 0 10px 2px">* TAT M\u00e9dio / P90 / Dentro meta TAT desconsideram ISAs com Pont. = Atraso motorista (atraso do caminh\u00e3o n\u00e3o reflete desempenho da doca)</div>';
   // WoW comparison
   h+='<div class="sec-title">\ud83d\udcc8 Compara\u00e7\u00e3o Semanal</div>';
   h+=buildWoW(data);
@@ -1822,7 +1829,7 @@ function renderTAT(data){if(!data)data=[];
     var lw0=new Date(tw0);lw0.setDate(lw0.getDate()-7);var lw1=new Date(tw0);lw1.setDate(lw1.getDate()-1);
     function wd(s,e){return data.filter(function(r){var d=dk(r.ai);return d>=s.toISOString().split('T')[0]&&d<=e.toISOString().split('T')[0];});}
     var tw=wd(tw0,today),lw=wd(lw0,lw1);
-    function mx(d){var c=d.filter(function(r){return r.st==='CLOSED'&&r.th>0;});return{isas:d.length,units:d.reduce(function(s,r){return s+(r.un||0);},0),tat:c.length?c.reduce(function(s,r){return s+r.th;},0)/c.length:0,pont:d.length?d.filter(function(r){return r.po==='Pontual';}).length/d.length*100:0,adoca:d.length?d.filter(function(r){return r.po==='Atraso doca';}).length/d.length*100:0,amot:d.length?d.filter(function(r){return r.po==='Atraso motorista';}).length/d.length*100:0};}
+    function mx(d){var c=d.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});return{isas:d.length,units:d.reduce(function(s,r){return s+(r.un||0);},0),tat:c.length?c.reduce(function(s,r){return s+r.th;},0)/c.length:0,pont:d.length?d.filter(function(r){return r.po==='Pontual';}).length/d.length*100:0,adoca:d.length?d.filter(function(r){return r.po==='Atraso doca';}).length/d.length*100:0,amot:d.length?d.filter(function(r){return r.po==='Atraso motorista';}).length/d.length*100:0};}
     h+=buildVisualWoW(mx(lw),mx(tw));
   })();
   // Pont breakdown
@@ -2479,7 +2486,7 @@ function renderConfig(data){
   // Sincronizacao entre computadores (token GitHub)
   h+='<div class="cfg-section"><h3>🔑 Sincronização entre computadores</h3>';
   var _hasTok=!!getGhToken();
-  h+='<div style="font-size:.75rem;color:#999;margin-bottom:8px">Cole aqui o token compartilhado para que Doca / Login / Obs / Turno / Perfil / Lado apareçam em todos os computadores automaticamente. Peça o token a quem já configurou — não precisa criar conta no GitHub.</div>';
+  h+='<div style="font-size:.75rem;color:#999;margin-bottom:8px">Cole aqui o token compartilhado para que Doca / Login / Obs / Turno / Perfil / Lado / Metas apareçam em todos os computadores automaticamente. Peça o token a quem já configurou — não precisa criar conta no GitHub.</div>';
   h+='<div class="cfg-row"><span style="font-size:.8rem">'+(_hasTok?'✅ Token configurado neste computador':'⚠️ Nenhum token configurado — edições ficam só neste computador')+'</span></div>';
   h+='<div class="cfg-row"><input type="password" id="cfgGhToken" placeholder="Cole o token aqui (ghp_... ou github_pat_...)" style="background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:6px 8px;border-radius:4px;width:100%;font-size:.78rem;font-family:monospace"></div>';
   h+='<div class="cfg-row"><button class="btn" onclick="saveGhTokenField(document.getElementById(\'cfgGhToken\').value)">💾 Salvar token</button> ';
@@ -2706,7 +2713,7 @@ function aiProcess(q,data){
 
 /* ─── SMART DATA QUERY FUNCTIONS (v7.4) ─── */
 function aiQueryTopTAT(data,dir){
-  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
+  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
   if(!cl.length)return 'Sem dados de TAT fechados.';
   cl.sort(function(a,b){return dir==='desc'?b.th-a.th:a.th-b.th;});
   var top=cl.slice(0,10);
@@ -2729,9 +2736,9 @@ function aiQueryAvgTAT(q,data){
     var today=getToday(data);
     var cutoff=new Date(today);cutoff.setDate(cutoff.getDate()-days);
     var cutStr=cutoff.toISOString().substring(0,10);
-    cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&dk(r.ai)>=cutStr;});
+    cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista'&&dk(r.ai)>=cutStr;});
   }else{
-    cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
+    cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
   }
   if(!cl.length)return 'Sem dados de TAT no per\u00edodo.';
   var tats=cl.map(function(r){return r.th;});
@@ -2874,7 +2881,7 @@ function aiRisks(data){
 function aiHandoff(data){return genHandoff();}
 function aiMetas(data){return '<b>\ud83c\udfaf Metas Atuais</b><br>TAT: <b>'+_metas.tat+'h</b><br>Pontualidade: <b>'+_metas.pont+'%</b><br><br>'+aiTATStats(data);}
 function aiTATStats(data){
-  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0;});
+  var cl=data.filter(function(r){return r.st==='CLOSED'&&r.th>0&&r.po!=='Atraso motorista';});
   if(!cl.length)return 'Sem dados TAT.';
   var t=cl.map(function(r){return r.th;});var avg=t.reduce(function(s,v){return s+v;},0)/t.length;
   t.sort(function(a,b){return a-b;});
