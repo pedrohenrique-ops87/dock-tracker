@@ -2298,8 +2298,8 @@ function renderASINs(data){
       h+='</tr></thead><tbody>';
       topN.forEach(function(a){
         h+='<tr style="border-bottom:1px solid rgba(255,255,255,.05)">';
-        h+='<td style="padding:3px">'+asinImg(a.a,28)+'</td>';
-        h+='<td style="padding:3px;font-size:.65rem"><a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a></td>';
+        h+='<td style="padding:3px">'+(a.a?asinImg(a.a,28):'<span style="color:#666">—</span>')+'</td>';
+        h+='<td style="padding:3px;font-size:.65rem">'+(a.a?('<a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a>'):'<span style="color:#888;font-style:italic">sem ASIN</span>')+'</td>';
         h+='<td style="padding:3px;font-size:.65rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+((a.n||'').substring(0,40))+'</td>';
         h+='<td style="padding:3px;font-size:.65rem">'+(a.s||'—')+'</td>';
         h+='<td style="padding:3px;font-size:.65rem">'+(a.t||'—')+'</td>';
@@ -2322,8 +2322,8 @@ function renderASINs(data){
     var imp=(a.p==='N'||!a.p)?'<span style="color:#ef5350">\ud83d\udd25 N</span>':'<span style="color:#4caf50">S</span>';
     var vendorList=Object.keys(a.vendors).sort(function(x,y){return a.vendors[y]-a.vendors[x];}).slice(0,3).map(function(v){return v+'('+num(a.vendors[v])+')';}).join(', ');
     h+='<tr>';
-    h+='<td>'+asinImg(a.a,36)+'</td>';
-    h+='<td style="font-size:.68rem"><a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a></td>';
+    h+='<td>'+(a.a?asinImg(a.a,36):'<span style="color:#666">—</span>')+'</td>';
+    h+='<td style="font-size:.68rem">'+(a.a?('<a href="'+asinFCR(a.a)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+a.a+'</a>'):'<span style="color:#888;font-style:italic" title="Item de sortability sem ASIN identificado (nao resolvido nem via VDD/TR-IN)">sem ASIN</span>')+'</td>';
     h+='<td style="font-size:.68rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+((a.n||'').replace(/"/g,'&quot;'))+'">'+((a.n||'').substring(0,45))+'</td>';
     h+='<td style="font-size:.68rem">'+(a.g?a.g.replace('gl_',''):'\u2014')+'</td>';
     h+='<td style="font-size:.68rem">'+(a.c||'\u2014')+'</td>';
