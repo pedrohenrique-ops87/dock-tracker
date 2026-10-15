@@ -988,17 +988,23 @@ function flagIcon(isa){
 /* ─── Expand Detail Builder ─── */
 function buildDetail(r){
   var items=sMap[r.i]||[];
-  var realAsinsBD=adMap[(r.fc||FC)+'|'+r.i]||null;
-  if(realAsinsBD&&realAsinsBD.length){
-    var expandedBD=[];
-    items.forEach(function(it){
-      if(!it.a){
-        var shareBD=Math.round((it.u||0)/realAsinsBD.length);
-        realAsinsBD.forEach(function(ra){expandedBD.push({a:ra.a,n:ra.n,g:ra.g||it.g||'',s:it.s||'',t:ra.t||it.t||'',c:it.c||'',u:shareBD,p:it.p||'',matched:true});});
-      } else { expandedBD.push(it); }
-    });
-    items=expandedBD;
-  }
+  var fcKeyBD=r.fc||FC;
+  var realAsinsBD=adMap[fcKeyBD+'|'+r.i]||null;
+  var expandedBD=[],changedBD=false;
+  items.forEach(function(it){
+    /* it.a may be empty (no ASIN at all), or it may be a VRID mislabeled as
+       ASIN by the CSV sync (transship leg mixed into a CARP ISA) - in that
+       case it.a itself is a key into adMap. Either way, expand into the
+       real matched products from QuickSight VDD/TR-IN detail. */
+    var vridMatchBD=it.a&&adMap[fcKeyBD+'|'+it.a];
+    var matchSetBD=vridMatchBD||(!it.a?realAsinsBD:null);
+    if(matchSetBD&&matchSetBD.length){
+      changedBD=true;
+      var shareBD=Math.round((it.u||0)/matchSetBD.length);
+      matchSetBD.forEach(function(ra){expandedBD.push({a:ra.a,n:ra.n,g:ra.g||it.g||'',s:it.s||'',t:ra.t||it.t||'',c:it.c||'',u:shareBD,p:it.p||'',matched:true});});
+    } else { expandedBD.push(it); }
+  });
+  if(changedBD)items=expandedBD;
   var h='<div class="xcard-detail">';
   h+='<h4>ISA <a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+r.i+'</a> '+flagIcon(r.i)+' \u2014 '+r.tp+' \u2014 '+(vn(r.v)==='\u2014'?'TRANSSHIP':r.v)+vsb(r.v)+'</h4>';
   
@@ -2006,11 +2012,15 @@ function renderASINs(data){
   filteredIsas.forEach(function(isa){
     var isaData=D.find(function(r){return r.i===isa;})||{};
     var dt=dk(isaData.ai)||'';
-    var realAsins=adMap[(isaData.fc||FC)+'|'+isa]||null;
+    var fcKey=isaData.fc||FC;
+    var realAsinsByIsa=adMap[fcKey+'|'+isa]||null;
     (sMap[isa]||[]).forEach(function(it){
-      if(!it.a && realAsins && realAsins.length){
-        /* No ASIN from the sortability source for this bucket: split its units
-           across the real ASINs matched for this ISA via QuickSight VDD/TR-IN detail */
+      /* it.a may be empty, or a VRID mislabeled as ASIN by the CSV sync
+         (transship leg mixed into a CARP ISA) - detect via adMap lookup
+         on it.a itself. Either way, expand into real matched products. */
+      var vridMatch=it.a && adMap[fcKey+'|'+it.a];
+      var realAsins=vridMatch || (!it.a ? realAsinsByIsa : null);
+      if(realAsins && realAsins.length){
         var share=Math.round((it.u||0)/realAsins.length);
         realAsins.forEach(function(ra){
           allItems.push({a:ra.a,n:ra.n,g:ra.g||it.g||'',s:it.s||'',t:ra.t||it.t||'',c:it.c||'',u:share,p:it.p||'',isa:isa,v:isaData.v||'',dt:dt,matched:true});
