@@ -854,7 +854,22 @@ function saveGhTokenField(val){
   });
 }
 function showToast(msg){var t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;bottom:80px;right:20px;background:#2e7d32;color:#fff;padding:10px 20px;border-radius:8px;z-index:99999;font-size:.85rem;box-shadow:0 4px 12px rgba(0,0,0,.5);transition:opacity .5s';document.body.appendChild(t);setTimeout(function(){t.style.opacity='0';setTimeout(function(){t.remove();},500);},2000);}
-function saveISAFields(isa){var d=document.getElementById('sel_doca_'+isa);if(d)setDoca(isa,d.value);var l=document.getElementById('sel_login_'+isa);if(l)setLogin(isa,l.value);var tt=document.getElementById('sel_tt_'+isa);if(tt)setTT(isa,tt.value);var o=document.getElementById('sel_obs_'+isa);if(o)setObs(isa,o.value);render();}
+function saveISAFields(isa){
+  var fields={};
+  var d=document.getElementById('sel_doca_'+isa);if(d){fields.doca=d.value;setLS('dt_doca_'+isa,d.value);}
+  var l=document.getElementById('sel_login_'+isa);if(l){fields.login=l.value;setLS('dt_login_'+isa,l.value);}
+  var tt=document.getElementById('sel_tt_'+isa);if(tt){fields.tt=tt.value;setLS('dt_tt_'+isa,tt.value);}
+  var o=document.getElementById('sel_obs_'+isa);if(o){fields.obs=o.value;setLS('dt_obs_'+isa,o.value);}
+  MANUAL.isa[isa]=MANUAL.isa[isa]||{};
+  Object.keys(fields).forEach(function(k){MANUAL.isa[isa][k]=fields[k];});
+  MANUAL.isa[isa].ts=Date.now();
+  render();
+  pushManual(function(obj){
+    obj.isa[isa]=obj.isa[isa]||{};
+    Object.keys(fields).forEach(function(k){obj.isa[isa][k]=fields[k];});
+    obj.isa[isa].ts=Date.now();
+  }).then(function(ok){if(ok)showToast('\u2705 Salvo e sincronizado!');});
+}
 
 function getLS(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function setLS(k,v){try{localStorage.setItem(k,v);}catch(e){}}
@@ -1059,7 +1074,7 @@ function buildDetail(r){
   h+='<div class="field-group wide"><label>OBS</label><textarea id="sel_obs_'+r.i+'" onblur="setObs(\''+r.i+'\',this.value)" placeholder="Observações...">'+getObs(r.i).replace(/</g,'&lt;')+'</textarea></div>';
   h+='</div>';
   
-  h+='<div style="margin:10px 0;text-align:center"><button onclick="saveISAFields(\x27'+r.i+'\x27);showToast(\x27\u2705 Salvo!\x27)" style="background:#2e7d32;color:#fff;border:none;padding:12px 32px;border-radius:6px;cursor:pointer;font-size:.95rem;font-weight:700;min-height:42px">\ud83d\udcbe Salvar</button></div>';
+  h+='<div style="margin:10px 0;text-align:center"><button onclick="saveISAFields(\x27'+r.i+'\x27)" style="background:#2e7d32;color:#fff;border:none;padding:12px 32px;border-radius:6px;cursor:pointer;font-size:.95rem;font-weight:700;min-height:42px">\ud83d\udcbe Salvar</button></div>';
   // TAT vs Meta indicator
   if(r.th>0){
     var met=r.th<=_metas.tat;
