@@ -1365,7 +1365,7 @@ function buildGantt(data,today){
   var startMin=6*60,endMin=24*60;var range=endMin-startMin;
   td.sort(function(a,b){return (getHourMin(a.ai)||0)-(getHourMin(b.ai)||0);});
   td.forEach(function(r){
-    var label=getDoca(r.i)||(vn(r.v)!=='—'?r.v.substring(0,8):r.i.substring(r.i.length-4));
+    var label=(vn(r.v)!=='—'?r.v.substring(0,8):r.i.substring(r.i.length-4));
     var s=getHourMin(r.ai),e=r.cl?getHourMin(r.cl):(r.ck?getHourMin(r.ck):getHourMin(r.ar));
     if(s<0)s=startMin;if(!e||e<0)e=s+30;
     var left=Math.max(0,((s-startMin)/range)*100);
@@ -1380,6 +1380,7 @@ function buildGantt(data,today){
     h+='<div class="gantt-detail" style="display:none">'+
        '<div><b>ISA:</b> <a href="'+isaLink(r.i)+'" target="_blank" style="color:#ff9900;text-decoration:none">'+r.i+'</a></div>'+
        '<div><b>Vendor:</b> '+vn(r.v)+' &nbsp; <b>Tipo:</b> '+(r.tp||'—')+'</div>'+
+       '<div><b>Doca:</b> '+(getDoca(r.i)||((r.doca&&r.doca!=='9999')?r.doca:'—'))+' &nbsp; <b>Login:</b> '+(getLogin(r.i)||'—')+'</div>'+
        '<div><b>Status:</b> '+ganttStatusLabel(r.st)+' &nbsp; <b>Turno:</b> '+(r.tu||'—')+'</div>'+
        '<div><b>Agendado:</b> '+fmtT(r.ai)+' &nbsp; <b>Chegada:</b> '+(r.ar?fmtT(r.ar):'—')+' &nbsp; <b>Fechado:</b> '+(r.cl?fmtT(r.cl):'—')+'</div>'+
        '<div><b>TAT:</b> '+(r.th?r.th+'h':'—')+' &nbsp; <b>Units:</b> '+num(r.un)+' &nbsp; <b>Cartons:</b> '+num(r.cx||0)+'</div>'+
