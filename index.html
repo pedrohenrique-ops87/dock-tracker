@@ -155,7 +155,7 @@ tbody tr:hover{background:rgba(255,153,0,.06)}
 .gantt-label{width:100px;font-size:.68rem;color:#ccc;flex-shrink:0;text-align:right;padding-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gantt-track{flex:1;position:relative;height:18px;background:rgba(255,255,255,.03);border-radius:3px}
 .gantt-bar{position:absolute;top:1px;height:16px;border-radius:3px;font-size:.58rem;color:#fff;line-height:16px;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;z-index:1;opacity:.9}
-.gantt-row{cursor:pointer}.gantt-row:hover{background:rgba(255,255,255,.04)}.gantt-units{width:52px;flex-shrink:0;font-size:.68rem;color:#ddd;text-align:right;padding-left:6px}.gantt-expand-icon{width:16px;flex-shrink:0;text-align:center;color:#888;font-size:.65rem}.gantt-detail{margin:2px 0 8px 100px;padding:8px 10px;background:#1a2232;border:1px solid #30363d;border-left:3px solid #ff9900;border-radius:4px;font-size:.7rem;color:#ccc;line-height:1.6}.gantt-legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.68rem;color:#aaa;margin:6px 0 10px}.gantt-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gantt-legend-note{color:#777;font-style:italic}
+.gantt-row{cursor:pointer}.gantt-row:hover{background:rgba(255,255,255,.04)}.gantt-units{width:92px;flex-shrink:0;font-size:.68rem;color:#ddd;text-align:right;padding-left:6px;white-space:nowrap}.gantt-expand-icon{width:16px;flex-shrink:0;text-align:center;color:#888;font-size:.65rem}.gantt-detail{margin:2px 0 8px 100px;padding:8px 10px;background:#1a2232;border:1px solid #30363d;border-left:3px solid #ff9900;border-radius:4px;font-size:.7rem;color:#ccc;line-height:1.6}.gantt-legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.68rem;color:#aaa;margin:6px 0 10px}.gantt-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.gantt-legend-note{color:#777;font-style:italic}
 .gantt-now{position:absolute;top:0;bottom:0;width:2px;background:#ff9900;z-index:5}
 .gantt-hours{display:flex;justify-content:space-between;font-size:.6rem;color:#666;padding:0 0 0 100px}
 
@@ -1374,7 +1374,7 @@ function buildGantt(data,today){
     h+='<div class="gantt-row" onclick="toggleGanttDetail(this)" title="Clique para detalhes">';
     h+='<span class="gantt-label" title="'+r.i+'">'+label+'</span>';
     h+='<div class="gantt-track"><div class="gantt-bar" style="left:'+left+'%;width:'+width+'%;background:'+color+'" title="'+r.i+' '+fmtT(r.ai)+'-'+(r.cl?fmtT(r.cl):'?')+'"></div></div>';
-    h+='<span class="gantt-units">'+num(r.un)+' un</span>';
+    h+='<span class="gantt-units">'+(function(){var dv=getDoca(r.i)||((r.doca&&r.doca!=='9999')?r.doca:'');return dv?('Doca '+dv+' • '):'';})()+num(r.un)+' un</span>';
     h+='<span class="gantt-expand-icon">▸</span>';
     h+='</div>';
     h+='<div class="gantt-detail" style="display:none">'+
@@ -2114,8 +2114,9 @@ function renderASINs(data){
 
   // ═══ Render ═══
   var h='<div class="toolbar"><button class="btn" onclick="exportTab(\'asins\')">📥 CSV</button>';
-  h+='<input class="search-box" id="asinSearch" placeholder="🔍 Buscar ASIN, produto, GL..." oninput="filterAsinTbl()">';
+  h+='<input class="search-box" id="asinSearch" placeholder="🔍 Buscar ASIN, produto, GL ou ISA..." oninput="filterAsinTbl()">';
   h+='</div>';
+  h+='<div id="isaDetailBox" style="display:none"></div>';
 
   // KPI cards
   h+='<div class="kpi-grid">';
@@ -2319,12 +2320,65 @@ function renderASINs(data){
 }
 
 function filterAsinTbl(){
-  var q=(document.getElementById('asinSearch')||{}).value||'';q=q.toLowerCase();
+  var raw=(document.getElementById('asinSearch')||{}).value||'';
+  var q=raw.toLowerCase();
   var rows=document.querySelectorAll('#asinTbl tbody tr');
   for(var i=0;i<rows.length;i++){
     var txt=rows[i].textContent.toLowerCase();
     rows[i].style.display=(!q||txt.indexOf(q)>=0)?'':'none';
   }
+  var box=document.getElementById('isaDetailBox');
+  if(box){
+    var isaCandidate=raw.trim();
+    var isKnownIsa=isaCandidate.length>=8 && /^[0-9]+$/.test(isaCandidate) && (sMap[isaCandidate] || D.some(function(r){return r.i===isaCandidate;}));
+    if(isKnownIsa){
+      box.innerHTML=renderIsaDetailCard(isaCandidate);
+      box.style.display='';
+    } else {
+      box.style.display='none';
+      box.innerHTML='';
+    }
+  }
+}
+function renderIsaDetailCard(isa){
+  var isaData=D.find(function(r){return r.i===isa;});
+  var fcKey=(isaData&&isaData.fc)||FC;
+  var realAsinsByIsa=adMap[fcKey+'|'+isa]||null;
+  var items=[];
+  (sMap[isa]||[]).forEach(function(it){
+    var vridMatch=it.a && adMap[fcKey+'|'+it.a];
+    var realAsins=vridMatch || (!it.a ? realAsinsByIsa : null);
+    if(realAsins && realAsins.length){
+      var share=Math.round((it.u||0)/realAsins.length);
+      realAsins.forEach(function(ra){
+        items.push({a:ra.a,n:ra.n,g:ra.g||it.g||'',s:it.s||'',t:ra.t||it.t||'',c:it.c||'',u:share,p:it.p||'',matched:true});
+      });
+    } else {
+      items.push({a:it.a,n:it.n,g:it.g||'',s:it.s||'',t:it.t||'',c:it.c||'',u:it.u||0,p:it.p||''});
+    }
+  });
+  var totalU=items.reduce(function(s,i){return s+(i.u||0);},0);
+  var h='<div class="sec-title" style="margin-top:4px">🔎 Detalhe ISA '+isa+'</div>';
+  h+='<div class="kpi-grid" style="margin-bottom:10px">';
+  h+='<div class="kpi"><div class="val" style="font-size:1rem">'+(isaData?vn(isaData.v):'—')+'</div><div class="lbl">Vendor</div></div>';
+  h+='<div class="kpi"><div class="val" style="font-size:1rem">'+(isaData?sb0(isaData.st):'—')+'</div><div class="lbl">Status</div></div>';
+  h+='<div class="kpi"><div class="val" style="font-size:1rem">'+(isaData?fmtT(isaData.ai):'—')+'</div><div class="lbl">Agendado</div></div>';
+  h+='<div class="kpi"><div class="val" style="font-size:1rem">'+(isaData&&isaData.doca?('Doca '+isaData.doca):'—')+'</div><div class="lbl">Doca</div></div>';
+  h+='<div class="kpi b"><div class="val">'+num(totalU)+'</div><div class="lbl">Units</div></div>';
+  h+='<div class="kpi"><div class="val">'+items.length+'</div><div class="lbl">ASINs</div></div>';
+  h+='</div>';
+  if(!isaData && !items.length){
+    h+='<div style="color:#888;font-size:.8rem;padding:8px">ISA não encontrado nos dados atuais.</div>';
+  } else if(!items.length){
+    h+='<div style="color:#888;font-size:.8rem;padding:8px">Appointment encontrado, mas sem detalhe de ASIN disponível ainda (sortability pendente).</div>';
+  } else {
+    h+='<div class="stbl" style="max-height:40vh"><table><thead><tr><th>ASIN</th><th>Produto</th><th>GL</th><th>Sort</th><th>Units</th><th>Promo</th></tr></thead><tbody>';
+    items.sort(function(a,b){return (b.u||0)-(a.u||0);}).forEach(function(it){
+      h+='<tr><td>'+(it.a?('<a href="https://www.amazon.com/dp/'+it.a+'" target="_blank" style="color:#ff9900;text-decoration:none">'+it.a+'</a>'):'—')+'</td><td>'+(it.n||'—')+'</td><td>'+(it.g?it.g.replace('gl_',''):'—')+'</td><td>'+(it.s||'—')+'</td><td>'+num(it.u)+'</td><td>'+(it.p||'—')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  return h;
 }
 
 /* ─── Histórico Tab ─── */
