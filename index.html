@@ -741,7 +741,7 @@ var STATUS_LABEL={'PENDING_SCHEDULE':'Pendente','ARRIVAL_SCHEDULED':'Agendado','
 function sb(st){st=st||'';return '<span class="badge st-'+st+'">'+(st?(STATUS_LABEL[st]||st):'—')+'</span>';}
 function pb(po){return '<span class="badge po-'+(po||'')+'">'+((po||'\u2014'))+'</span>';}
 function vn(v){return (!v||v==='null'||v==='')?'\u2014':v;}
-function fd(){return D.filter(function(r){return r.fc===FC;});}
+function fd(){return D.filter(function(r){return r.fc===FC && r.v!=='BREAK';});}
 function getToday(data){
   var realToday=new Date().toISOString().split('T')[0];
   if(!data||!data.length)return realToday;
