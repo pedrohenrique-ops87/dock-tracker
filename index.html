@@ -1339,7 +1339,7 @@ function buildHeatmap(data,today){
     h=getHourMin(r.cl);if(h>=0&&hm[Math.floor(h/60)%24])hm[Math.floor(h/60)%24].cl+=(r.un||0);
   });
   var maxV=1;Object.keys(hm).forEach(function(k){maxV=Math.max(maxV,hm[k].a,hm[k].ar,hm[k].cl);});
-  var html='<div class="heatmap"><div class="hm-header">Hora</div><div class="hm-header">Agendado</div><div class="hm-header">Arrived</div><div class="hm-header">Closed</div>';
+  var html='<div class="heatmap"><div class="hm-header">Hora</div><div class="hm-header" title="Unidades cujo hor\u00e1rio AGENDADO cai nesta hora">Agendado (previsto)</div><div class="hm-header" title="Unidades cuja CHEGADA REAL caiu nesta hora">Arrived (chegada real)</div><div class="hm-header" title="Unidades cujo FECHAMENTO REAL caiu nesta hora">Closed (fechamento real)</div>';
   for(var i=6;i<=29;i++){
     var hr=i%24;var d=hm[hr]||{a:0,ar:0,cl:0};
     html+='<div class="hm-label">'+(hr<10?'0':'')+hr+':00</div>';
@@ -1693,6 +1693,7 @@ function renderHoje(data){
   h+='</tbody></table></div>';
   // Heatmap
   h+='<div class="sec-title">\ud83d\udd25 Heatmap Volume/Hora</div>';
+  h+='<div style="font-size:.7rem;color:#999;margin:-2px 0 8px 2px;max-width:720px">\u26a0\ufe0f As 3 colunas s\u00e3o <b>distribui\u00e7\u00f5es independentes</b>, n\u00e3o um funil: cada uma soma as unidades de HOJE pela hora em que algo aconteceu (agendado / chegou / fechou). Uma mesma linha (hora) <b>n\u00e3o representa o mesmo grupo de ISAs</b> nas 3 colunas \u2014 ex: um ISA agendado \u00e0s 08h pode s\u00f3 fechar \u00e0s 11h, e vai aparecer em horas diferentes em cada coluna.</div>';
   h+=buildHeatmap(data,today);
   // Dock utilization
   h+=buildDockUtil(td);
