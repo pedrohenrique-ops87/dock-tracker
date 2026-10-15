@@ -743,9 +743,16 @@ function pb(po){return '<span class="badge po-'+(po||'')+'">'+((po||'\u2014'))+'
 function vn(v){return (!v||v==='null'||v==='')?'\u2014':v;}
 function fd(){return D.filter(function(r){return r.fc===FC;});}
 function getToday(data){
-  if(!data||!data.length)return new Date().toISOString().split('T')[0];
-  var dates=data.map(function(r){return dk(r.ai);}).filter(Boolean).sort();
-  return dates.length?dates[dates.length-1]:new Date().toISOString().split('T')[0];
+  var realToday=new Date().toISOString().split('T')[0];
+  if(!data||!data.length)return realToday;
+  var dates=data.map(function(r){return dk(r.ai);}).filter(Boolean);
+  if(dates.indexOf(realToday)>=0)return realToday;
+  /* No appointment for the real calendar date (ex: sync parado por horas) --
+     cai pro dia mais recente DO PASSADO que tem dado, nunca um outlier futuro
+     (um unico ISA remarcado pra semanas na frente nao pode virar "hoje" e
+     deslocar toda a tira de dias +-7 / Gantt / heatmap / WoW com ele) */
+  var past=dates.filter(function(d){return d<=realToday;}).sort();
+  return past.length?past[past.length-1]:realToday;
 }
 
 /* ─── Sync entre computadores (GitHub, data/manual.json) ─── */
