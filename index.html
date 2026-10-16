@@ -714,11 +714,18 @@ var _countdownTimer=null;
 var _nextRefresh=0;
 (function(){try{var c=localStorage.getItem('dt_autorefresh');if(c){var o=JSON.parse(c);_autoRefresh=o.on!==false;_refreshInterval=o.min||15;}}catch(e){}})();
 function saveRefreshConfig(){try{localStorage.setItem('dt_autorefresh',JSON.stringify({on:_autoRefresh,min:_refreshInterval}));}catch(e){}}
+function _hardRefresh(){
+  try{
+    var u=new URL(location.href);
+    u.searchParams.set('_r', Date.now());
+    location.href=u.toString();
+  }catch(e){ location.reload(); }
+}
 function startAutoRefresh(){
   clearInterval(_refreshTimer);clearInterval(_countdownTimer);
   if(!_autoRefresh)return;
   _nextRefresh=Date.now()+_refreshInterval*60000;
-  _refreshTimer=setInterval(function(){location.reload();},_refreshInterval*60000);
+  _refreshTimer=setInterval(_hardRefresh,_refreshInterval*60000);
   _countdownTimer=setInterval(updateCountdown,1000);
   updateRefreshUI();
 }
@@ -743,7 +750,7 @@ function updateRefreshUI(){
 function doRefresh(){
   var el=document.getElementById('lastRefresh');
   if(el)el.textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  location.reload();
+  _hardRefresh();
 }
 
 /* ─── Utility Functions ─── */
