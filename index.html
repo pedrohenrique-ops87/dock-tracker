@@ -1340,26 +1340,39 @@ function buildHeatmap(data,today){
   var hm={};
   for(var i=6;i<=29;i++){var hr=i%24;hm[hr]={a:0,ar:0,cl:0};}
   data.filter(function(r){return dk(r.ai)===today;}).forEach(function(r){
-    var h;
-    h=getHourMin(r.ai);if(h>=0)hm[Math.floor(h/60)%24]=(hm[Math.floor(h/60)%24]||{a:0,ar:0,cl:0}),hm[Math.floor(h/60)%24].a+=(r.un||0);
-    h=getHourMin(r.ar);if(h>=0&&hm[Math.floor(h/60)%24])hm[Math.floor(h/60)%24].ar+=(r.un||0);
-    h=getHourMin(r.cl);if(h>=0&&hm[Math.floor(h/60)%24])hm[Math.floor(h/60)%24].cl+=(r.un||0);
+    var h=getHourMin(r.ai);
+    if(h<0)return;
+    var hr=Math.floor(h/60)%24;
+    if(!hm[hr])hm[hr]={a:0,ar:0,cl:0};
+    var u=r.un||0;
+    hm[hr].a+=u;
+    if(r.ar&&r.ar!=='null')hm[hr].ar+=u;
+    if(r.cl&&r.cl!=='null')hm[hr].cl+=u;
   });
-  var maxV=1;var tot={a:0,ar:0,cl:0};Object.keys(hm).forEach(function(k){maxV=Math.max(maxV,hm[k].a,hm[k].ar,hm[k].cl);tot.a+=hm[k].a;tot.ar+=hm[k].ar;tot.cl+=hm[k].cl;});
-  var html='<div class="heatmap"><div class="hm-header">Hora</div><div class="hm-header" title="Unidades cujo hor\u00e1rio AGENDADO cai nesta hora">Agendado (previsto)</div><div class="hm-header" title="Unidades cuja CHEGADA REAL caiu nesta hora">Arrived (chegada real)</div><div class="hm-header" title="Unidades cujo FECHAMENTO REAL caiu nesta hora">Closed (fechamento real)</div>';
+  var maxA=1,maxAr=1,maxCl=1;var tot={a:0,ar:0,cl:0};
+  Object.keys(hm).forEach(function(k){maxA=Math.max(maxA,hm[k].a);maxAr=Math.max(maxAr,hm[k].ar);maxCl=Math.max(maxCl,hm[k].cl);tot.a+=hm[k].a;tot.ar+=hm[k].ar;tot.cl+=hm[k].cl;});
+  var html='<div class="heatmap"><div class="hm-header">Hora (agendado)</div>'+
+    '<div class="hm-header" title="Unidades AGENDADAS pra chegar nesta hora, hoje">Agendado</div>'+
+    '<div class="hm-header" title="Dessas MESMAS unidades agendadas nesta hora, quantas J\u00c1 chegaram at\u00e9 agora (a chegada em si pode ter sido em qualquer hor\u00e1rio)">J\u00e1 chegou</div>'+
+    '<div class="hm-header" title="Dessas MESMAS unidades agendadas nesta hora, quantas J\u00c1 fecharam at\u00e9 agora (o fechamento em si pode ter sido em qualquer hor\u00e1rio)">J\u00e1 fechou</div>';
   for(var i=6;i<=29;i++){
     var hr=i%24;var d=hm[hr]||{a:0,ar:0,cl:0};
+    if(!d.a){html+='<div class="hm-label" style="opacity:.4">'+(hr<10?'0':'')+hr+':00</div><div class="hm-cell"></div><div class="hm-cell"></div><div class="hm-cell"></div>';continue;}
     html+='<div class="hm-label">'+(hr<10?'0':'')+hr+':00</div>';
-    ['a','ar','cl'].forEach(function(k){
-      var v=d[k];var intensity=Math.round((v/maxV)*100);
+    [['a',maxA],['ar',maxAr],['cl',maxCl]].forEach(function(pair){
+      var k=pair[0],mx=pair[1];var v=d[k];var intensity=Math.round((v/mx)*100);
       var bg=v?'rgba(255,153,0,'+(0.1+intensity/120)+')':'transparent';
-      html+='<div class="hm-cell" style="background:'+bg+'">'+(v?num(v):'')+'</div>';
+      var pctTxt=(k!=='a'&&d.a)?' <span style="opacity:.6;font-size:.68em">('+Math.round(v/d.a*100)+'%)</span>':'';
+      html+='<div class="hm-cell" style="background:'+bg+'">'+(v?num(v)+pctTxt:(k==='a'?'':'\u2014'))+'</div>';
     });
   }
   html+='<div class="hm-label" style="font-weight:700;border-top:2px solid #ff9900">Total</div>';
-  ['a','ar','cl'].forEach(function(k){html+='<div class="hm-cell" style="font-weight:700;border-top:2px solid #ff9900;background:#1a2232">'+num(tot[k])+'</div>';});
+  [['a',null],['ar',tot.a],['cl',tot.a]].forEach(function(pair){
+    var k=pair[0],base=pair[1];var pctTxt=base?' <span style="opacity:.7;font-size:.68em">('+Math.round(tot[k]/base*100)+'%)</span>':'';
+    html+='<div class="hm-cell" style="font-weight:700;border-top:2px solid #ff9900;background:#1a2232">'+num(tot[k])+pctTxt+'</div>';
+  });
   html+='</div>';
-  html+='<div style="font-size:.68rem;color:#8aa;margin:4px 0 0">\ud83d\udc49 Os totais ficam parecidos entre as 3 colunas porque \u00e9 o <b>mesmo grupo de ISAs de hoje</b>, s\u00f3 contado pela hora de uma etapa diferente \u2014 n\u00e3o h\u00e1 unidade duplicada DENTRO de cada coluna. O que n\u00e3o faz sentido \u00e9 somar os totais das 3 colunas entre si (isso sim triplicaria a contagem); use o total de UMA coluna por vez.</div>';
+  html+='<div style="font-size:.68rem;color:#8aa;margin:4px 0 0">\ud83d\udc49 Cada LINHA = as unidades agendadas pra chegar naquela hora, hoje. \u201cJ\u00e1 chegou\u201d/\u201cJ\u00e1 fechou\u201d mostram quantas dessas MESMAS unidades j\u00e1 passaram por cada etapa at\u00e9 agora (n\u00e3o necessariamente dentro da mesma hora) \u2014 por isso os n\u00fameros SEMPRE caem da esquerda pra direita dentro da linha: fechou \u2264 chegou \u2264 agendado. O % mostra o quanto daquela onda j\u00e1 avan\u00e7ou.</div>';
   return html;
 }
 
@@ -1703,7 +1716,6 @@ function renderHoje(data){
   h+='</tbody></table></div>';
   // Heatmap
   h+='<div class="sec-title">\ud83d\udd25 Heatmap Volume/Hora</div>';
-  h+='<div style="font-size:.7rem;color:#999;margin:-2px 0 8px 2px;max-width:720px">\u26a0\ufe0f As 3 colunas s\u00e3o <b>distribui\u00e7\u00f5es independentes</b>, n\u00e3o um funil: cada uma soma as unidades de HOJE pela hora em que algo aconteceu (agendado / chegou / fechou). Uma mesma linha (hora) <b>n\u00e3o representa o mesmo grupo de ISAs</b> nas 3 colunas \u2014 ex: um ISA agendado \u00e0s 08h pode s\u00f3 fechar \u00e0s 11h, e vai aparecer em horas diferentes em cada coluna.</div>';
   h+=buildHeatmap(data,today);
   // Dock utilization
   h+=buildDockUtil(td);
