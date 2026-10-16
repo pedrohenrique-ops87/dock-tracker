@@ -1856,6 +1856,9 @@ function renderTAT(data){if(!data)data=[];
   var cats={};var catRows={};
   data.forEach(function(r){var k=r.po||'Desconhecido';cats[k]=(cats[k]||0)+1;if(!catRows[k])catRows[k]=[];catRows[k].push(r);});
   h+='<div class="sec-title">Pontualidade Breakdown</div>';
+  if(cats['Desconhecido']){
+    h+='<div style="font-size:.7rem;color:#8aa;background:#1a2232;border-left:3px solid #f59e0b;padding:6px 10px;margin:4px 0 8px;border-radius:4px">\u26a0\ufe0f <b>Desconhecido</b> ('+cats['Desconhecido']+' ISAs) = ainda sem classifica\u00e7\u00e3o de Pontualidade. Investigado: a maioria N\u00c3O \u00e9 ISA ainda em andamento \u2014 j\u00e1 fechou, s\u00f3 que o pull autom\u00e1tico do QuickSight (\"Dive deep\") n\u00e3o tem filtro de data por padr\u00e3o e captura s\u00f3 500 linhas de ~2 anos de hist\u00f3rico (amostra quase aleat\u00f3ria, raramente pega o recente). N\u00e3o \u00e9 bug do pipeline \u2014 precisa o dono do dashboard QuickSight ordenar/filtrar esse visual por data pra resolver na origem.</div>';
+  }
   h+=buildPontDonut(cats,data.length);
   h+='<div class="stbl"><table id="tbl_pont"><thead><tr><th></th><th>Categoria</th><th>Count</th><th>%</th></tr></thead><tbody>';
   var catIdx=0;
