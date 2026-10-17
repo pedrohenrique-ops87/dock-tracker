@@ -771,10 +771,19 @@ function getToday(data){
   if(!data||!data.length)return realToday;
   var dates=data.map(function(r){return dk(r.ai);}).filter(Boolean);
   if(dates.indexOf(realToday)>=0)return realToday;
-  /* No appointment for the real calendar date (ex: sync parado por horas) --
-     cai pro dia mais recente DO PASSADO que tem dado, nunca um outlier futuro
-     (um unico ISA remarcado pra semanas na frente nao pode virar "hoje" e
-     deslocar toda a tira de dias +-7 / Gantt / heatmap / WoW com ele) */
+  /* BUG CORRIGIDO 2026-10-16: quando o Day Picker ja restringiu "data" a um
+     UNICO dia (inclusive futuro, ex: usuario clicou no card de +2 dias), nao
+     ha ambiguidade nenhuma sobre qual dia e esse -- confie nele direto, senao
+     a tabela/heatmap/EOS daquele dia renderizam vazios (comparam contra o dia
+     real de hoje, que nao existe dentro desse subconjunto de 1 dia so). */
+  var uniqDates={};dates.forEach(function(d){uniqDates[d]=true;});
+  var uniqKeys=Object.keys(uniqDates);
+  if(uniqKeys.length===1)return uniqKeys[0];
+  /* "data" cobre varios dias (ex: fd() completo, sem filtro de dia ativo) --
+     mantem a salvaguarda original: cai pro dia mais recente DO PASSADO que
+     tem dado, nunca um outlier futuro (um unico ISA remarcado pra semanas na
+     frente nao pode virar "hoje" e deslocar toda a tira de dias +-7 / Gantt /
+     heatmap / WoW com ele) */
   var past=dates.filter(function(d){return d<=realToday;}).sort();
   return past.length?past[past.length-1]:realToday;
 }
